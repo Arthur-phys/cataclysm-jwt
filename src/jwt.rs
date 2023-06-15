@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Header {
 
     // alg: SigningAlgorithm,
@@ -19,18 +21,25 @@ pub struct Header {
 
 }
 
-#[derive(Deserialize)]
+#[derive(Clone)]
+pub struct JWT {
+    pub header: Header,
+    pub payload: HashMap<String,String>,
+    pub token: String
+}
+
+#[derive(Deserialize, Clone)]
 
 pub struct JWK {
 
     pub alg: Option<String>,
     pub kty: Option<String>,
-    r#use: Option<String>,
-    key_ops: Option<String>,
+    _use: Option<String>,
+    _key_ops: Option<String>,
     pub n: String,
     pub e: String,
     pub kid: Option<String>,
-    x5t: Option<String>,
-    x5c: Option<Vec<String>>,
+    _x5t: Option<String>,
+    _x5c: Option<Vec<String>>,
 
 }

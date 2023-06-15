@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose};
-use jwt_simple::prelude::{HS256Key, RS256PublicKey, RSAPublicKeyLike, VerificationOptions, NoCustomClaims};
-use crate::{Error, Header, jwt::JWK};
-use cataclysm::{http::Request, session::Session};
+use jwt_simple::prelude::{HS256Key, RS256PublicKey, RSAPublicKeyLike, VerificationOptions, NoCustomClaims, MACLike};
+use crate::{Error, Header, jwt::{JWK, JWT}};
+use cataclysm::{http::Request, session::{Session, SessionCreator}};
 
 /// Possible signing algorithms for JWT. There are more, but only basic ones are provided.
 /// If none is chosen, then no sign validation will be made.
@@ -12,6 +12,7 @@ pub enum SigningAlgorithm {
     HS256
 }
 
+#[derive(Clone)]
 /// A priori information to valdiate JWT: Who issued it, who is intended to read it and which algorithm was used to preserve information unchanged.
 /// Since token is not issued by the same server that validates it, we cannot trust its header which contains this information, rather it needs to be validated.
 /// The payload is information that is obtained every time in a session
@@ -22,6 +23,7 @@ pub struct JWTAsymmetricSession {
     verification_options: Option<VerificationOptions>,
 }
 
+#[derive(Clone)]
 pub struct JWTSymmetricSession {
     pub aud: String,
     pub iss: String,
@@ -187,12 +189,12 @@ impl JWTAsymmetricSessionBuilder {
 
                 let body = reqwest::blocking::get(ks).map_err(|e| Error::ReqwestError(e))?.text().map_err(|e| Error::ReqwestError(e))?;
 
-                serde_json::from_str::<Vec<JWK>>(&body).map_err(|e| Error::SerdeError(e)).into_iter().map(|k| -> Result<(JWK,RS256PublicKey),Error> {
+                serde_json::from_str::<Vec<JWK>>(&body).map_err(|e| Error::SerdeError(e))?.into_iter().map(|k| -> Result<(JWK,RS256PublicKey),Error> {
 
                     let rskey = RS256PublicKey::from_components(k.n.as_bytes(), k.e.as_bytes()).map_err(|e| Error::RS256PublicKey(e))?;
                     Ok((k,rskey))
                 
-                })?
+                }).collect::<Result<Vec<(JWK,RS256PublicKey)>,_>>()?
             
             }
         };
@@ -207,13 +209,54 @@ impl JWTAsymmetricSessionBuilder {
 
 }
 
-pub trait JWTSession {
+impl SessionCreator for JWTAsymmetricSession {
+    
+    fn create(&self, req: &Request) -> Result<Session, cataclysm::Error> {
+        match self.build_session_from_req(req) {
+            Ok(Some(s)) => {
+                Ok(s)
+            },
+            Ok(None) => {
+                return Err(cataclysm::Error::Custom(String::from("No JWT session found and one cannot be provided by server")))
+            }
+            Err(e) => {
+                return Err(cataclysm::Error::Custom(format!("{}",e)));
+            }
+        }
+    }
+    fn apply(&self, _values: &HashMap<String, String>, res: cataclysm::http::Response) -> cataclysm::http::Response {
+        res
+    }
+}
+
+impl SessionCreator for JWTSymmetricSession {
+
+    fn create(&self, req: &Request) -> Result<Session, cataclysm::Error> {
+        match self.build_session_from_req(req) {
+            Ok(Some(s)) => {
+                Ok(s)
+            },
+            Ok(None) => {
+                return Err(cataclysm::Error::Custom(String::from("No JWT session found and one cannot be provided by server")))
+            }
+            Err(e) => {
+                return Err(cataclysm::Error::Custom(format!("{}",e)));
+            }
+        }
+    }
+
+    fn apply(&self, _values: &HashMap<String, String>, res: cataclysm::http::Response) -> cataclysm::http::Response {
+        res
+    }
+}
+
+pub trait JWTSession: SessionCreator {
     
     fn build() -> JWTSessionBuilder {
         JWTSessionBuilder {}
     }
 
-    fn build_session_from_req(&self, req: &Request) -> Result<Option<Session>,Error> {
+    fn obtain_token_from_req(req: &Request) -> Result<JWT,Error> {
 
         let authorization_header = match req.headers.get("Authorization") {
             Some(a) => a,
@@ -226,7 +269,7 @@ pub trait JWTSession {
                 }
             }
         };
-
+        
         let token: String = authorization_header[0].split(' ').collect::<String>();
         let token_parts: Vec<&str> = token.split('.').collect();
 
@@ -245,8 +288,6 @@ pub trait JWTSession {
             }
         };
 
-        self.initial_validation(header,&token)?;
-
         let payload: HashMap<String,String> = match general_purpose::URL_SAFE_NO_PAD.decode(token_parts[1]) {
             Ok(p) => match std::str::from_utf8(&p) {
                 Ok(p_s) => serde_json::from_str(p_s).map_err(|e| Error::SerdeError(e))?,
@@ -254,10 +295,15 @@ pub trait JWTSession {
             },
             Err(e) => return Err(Error::DecodeError(e))
         };
-
-        return Ok(Some(Session::new_with_values(self.clone(), payload)))
-    
+        
+        Ok(JWT {
+            header,
+            payload,
+            token
+        })
     }
+
+    fn build_session_from_req(&self, req: &Request) -> Result<Option<Session>,Error>;
 
     fn initial_validation<A: AsRef<str>>(&self, header: Header, token_str: A) -> Result<(),Error>;
 
@@ -281,17 +327,25 @@ impl JWTSession for JWTAsymmetricSession {
 
         // Check key id
         let key = self.key_store.iter().filter(|jwk| {
-            header.kid == jwk.kid
-        }).map(|jwk| -> Result<RS256PublicKey,Error> {
-            RS256PublicKey::from_components(jwk.n.as_bytes(), jwk.e.as_bytes()).map_err(|e| Error::RS256PublicKey(e))
-        }).collect::<Result<Vec<RS256PublicKey>,_>>()?;
+            header.kid == jwk.0.kid
+        }).collect::<Vec<&(JWK,RS256PublicKey)>>();
 
         if key.len() > 1 || key.len() == 0 {
             return Err(Error::KeyLenght)
         }
 
         // check signature and use verification options
-        key[0].verify_token::<NoCustomClaims>(token_str.as_ref(), self.verification_options.clone()).map_err(|e| Error::VerificationFailed(e)).map(|_| {()})
+        key[0].1.verify_token::<NoCustomClaims>(token_str.as_ref(), self.verification_options.clone()).map_err(|e| Error::VerificationFailed(e)).map(|_| {()})
+    }
+
+    fn build_session_from_req(&self, req: &Request) -> Result<Option<Session>,Error> {
+
+        let jwt = Self::obtain_token_from_req(req)?;
+
+        self.initial_validation(jwt.header,&jwt.token)?;
+
+        return Ok(Some(Session::new_with_values(self.clone(), jwt.payload)))
+    
     }
 
 }
@@ -311,10 +365,16 @@ impl JWTSession for JWTSymmetricSession {
             }
         }
 
-        
+        self.secret_key.verify_token::<NoCustomClaims>(token_str.as_ref(), self.verification_options.clone()).map_err(|e| Error::VerificationFailed(e)).map(|_| {()})
 
-        todo!()
+    }
 
+    fn build_session_from_req(&self, req: &Request) -> Result<Option<Session>,Error> {
+        let jwt = Self::obtain_token_from_req(req)?;
+
+        self.initial_validation(jwt.header,&jwt.token)?;
+
+        return Ok(Some(Session::new_with_values(self.clone(), jwt.payload)))
     }
 
 }
