@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose};
 use jwt_simple::prelude::{HS256Key, RS256PublicKey, RSAPublicKeyLike, VerificationOptions, NoCustomClaims, MACLike};
+use serde_json::to_string;
 use crate::{Error, Header, jwt::{JWK, JWT}};
 use cataclysm::{http::Request, session::{Session, SessionCreator}};
 
@@ -270,7 +271,7 @@ pub trait JWTSession: SessionCreator {
             }
         };
         
-        let token: String = authorization_header[0].split(' ').collect::<String>();
+        let token: String = authorization_header[0].split(' ').collect::<Vec<&str>>()[1].to_string();
         let token_parts: Vec<&str> = token.split('.').collect();
 
         let header_string = match general_purpose::URL_SAFE_NO_PAD.decode(token_parts[0]) {
@@ -280,7 +281,7 @@ pub trait JWTSession: SessionCreator {
             },
             Err(e) => return Err(Error::DecodeError(e))
         };
-
+        
         let header: Header = match serde_json::from_str(&header_string) {
             Ok(h) => h,
             Err(e) => {
@@ -295,6 +296,8 @@ pub trait JWTSession: SessionCreator {
             },
             Err(e) => return Err(Error::DecodeError(e))
         };
+
+        println!("{:?}",payload);
         
         Ok(JWT {
             header,

@@ -1,10 +1,11 @@
-use cataclysm::{Server, Branch, http::{Response, Method}};
+use cataclysm::{Server, Branch, http::{Response, Method}, session::Session};
 use cataclysm_jwt::jwt_session::{JWTSession, JWTAsymmetricSession};
  
-async fn index() -> Response {
+async fn index(_session: Session) -> Response {
     Response::ok().body("Hello, World!")
 }
- 
+
+
 #[tokio::main]
 async fn main() {
 
