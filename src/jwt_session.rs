@@ -49,7 +49,7 @@ pub struct JWTAsymmetricSessionBuilder {
 }
 
 impl JWTSessionBuilder {
-    pub fn new_with_hs256_signing() -> JWTSymmetricSessionBuilder {
+    pub fn new_with_hs256_signing(self) -> JWTSymmetricSessionBuilder {
         JWTSymmetricSessionBuilder {
             aud: None,
             iss: None,
@@ -58,7 +58,7 @@ impl JWTSessionBuilder {
         }
     }
 
-    pub fn new_with_rs256_signing() -> JWTAsymmetricSessionBuilder {
+    pub fn new_with_rs256_signing(self) -> JWTAsymmetricSessionBuilder {
         JWTAsymmetricSessionBuilder {
             aud: None,
             iss: None,
@@ -165,7 +165,7 @@ impl JWTAsymmetricSessionBuilder {
         }
     }
 
-    pub fn build(self) -> Result<JWTAsymmetricSession,Error> {
+    pub async fn build(self) -> Result<JWTAsymmetricSession,Error> {
 
         let aud = match self.aud {
             None => {
@@ -187,12 +187,12 @@ impl JWTAsymmetricSessionBuilder {
             },
             Some(ks) => {
 
-                let body = reqwest::blocking::get(ks).map_err(|e| Error::ReqwestError(e))?.text().map_err(|e| Error::ReqwestError(e))?;
+                let body = reqwest::get(ks).await.map_err(|e| Error::ReqwestError(e))?.text().await.map_err(|e| Error::ReqwestError(e))?;
 
-                serde_json::from_str::<Vec<JWK>>(&body).map_err(|e| Error::SerdeError(e))?.into_iter().map(|k| -> Result<(JWK,RS256PublicKey),Error> {
+                serde_json::from_str::<HashMap<String,Vec<JWK>>>(&body).map_err(|e| Error::SerdeError(e))?.get("keys").ok_or(Error::KeyStoreError)?.into_iter().map(|k| -> Result<(JWK,RS256PublicKey),Error> {
 
                     let rskey = RS256PublicKey::from_components(k.n.as_bytes(), k.e.as_bytes()).map_err(|e| Error::RS256PublicKey(e))?;
-                    Ok((k,rskey))
+                    Ok((k.clone(),rskey))
                 
                 }).collect::<Result<Vec<(JWK,RS256PublicKey)>,_>>()?
             
@@ -252,7 +252,7 @@ impl SessionCreator for JWTSymmetricSession {
 
 pub trait JWTSession: SessionCreator {
     
-    fn build() -> JWTSessionBuilder {
+    fn builder() -> JWTSessionBuilder {
         JWTSessionBuilder {}
     }
 

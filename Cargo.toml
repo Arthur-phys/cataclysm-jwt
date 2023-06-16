@@ -12,3 +12,4 @@ base64 = "0.21.2"
 cataclysm = "0.2.0-beta.11"
 jwt-simple = "0.11.5"
 reqwest = { version = "0.11.18", features = ["blocking"] }
+tokio = { version = "1.28.2", features = ["full"] }
