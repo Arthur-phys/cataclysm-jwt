@@ -29,7 +29,8 @@ pub enum Error {
     /// Error while constructing jwt rs256 public key
     RS256PublicKey(jwt_simple::Error),
     KeyLenght,
-    VerificationFailed(jwt_simple::Error)
+    VerificationFailed(jwt_simple::Error),
+    PayloadError
 }
 
 impl std::fmt::Display for Error {
@@ -52,7 +53,8 @@ impl std::fmt::Display for Error {
             Error::ReqwestError(e) => format!("Reqwest error: {}",e),
             Error::RS256PublicKey(e) => format!("RS256 public key could not be read and converted: {}",e),
             Error::KeyLenght => format!("There is more than one key with same id present in JWKS or no key at all"),
-            Error::VerificationFailed(e) => format!("Verification failed for JWT: {}",e)
+            Error::VerificationFailed(e) => format!("Verification failed for JWT: {}",e),
+            Error::PayloadError => format!("To string conversion failed for payload!")
         };
 
         write!(f,"{}",writing)

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose};
 use jwt_simple::prelude::{HS256Key, RS256PublicKey, RSAPublicKeyLike, VerificationOptions, NoCustomClaims, MACLike};
-use serde_json::to_string;
+use serde_json::Value;
 use crate::{Error, Header, jwt::{JWK, JWT}};
 use cataclysm::{http::Request, session::{Session, SessionCreator}};
 
@@ -291,13 +291,22 @@ pub trait JWTSession: SessionCreator {
 
         let payload: HashMap<String,String> = match general_purpose::URL_SAFE_NO_PAD.decode(token_parts[1]) {
             Ok(p) => match std::str::from_utf8(&p) {
-                Ok(p_s) => serde_json::from_str(p_s).map_err(|e| Error::SerdeError(e))?,
+                Ok(p_s) => {
+
+                    serde_json::from_str::<HashMap<String,Value>>(p_s).map_err(|e| Error::SerdeError(e))?.into_iter().map(|(k,v)| -> Result<(String,String),Error> {
+                        let v = if v.is_string() {
+                            v.as_str().ok_or(Error::PayloadError)?.to_string()
+                        } else {
+                            v.to_string()
+                        };
+                        Ok((k,v))
+                    }).collect::<Result<HashMap<String,String>,_>>()?
+
+                },
                 Err(e) => return Err(Error::Utf8Error(e))
             },
             Err(e) => return Err(Error::DecodeError(e))
         };
-
-        println!("{:?}",payload);
         
         Ok(JWT {
             header,
@@ -315,7 +324,7 @@ pub trait JWTSession: SessionCreator {
 impl JWTSession for JWTAsymmetricSession {
 
     fn initial_validation<A: AsRef<str>>(&self, header: Header, token_str: A) -> Result<(),Error> {
-        
+
         // Check the algorithm
         match header.alg {
             Some(a) => {
@@ -337,15 +346,23 @@ impl JWTSession for JWTAsymmetricSession {
             return Err(Error::KeyLenght)
         }
 
+        println!("{:?}",key[0].1);
         // check signature and use verification options
-        key[0].1.verify_token::<NoCustomClaims>(token_str.as_ref(), self.verification_options.clone()).map_err(|e| Error::VerificationFailed(e)).map(|_| {()})
+        key[0].1.verify_token::<NoCustomClaims>(token_str.as_ref(), None).map_err(|e| {
+            println!("{}",e);
+            return Error::VerificationFailed(e);
+        }).map(|_| {()})
+    
     }
 
     fn build_session_from_req(&self, req: &Request) -> Result<Option<Session>,Error> {
 
         let jwt = Self::obtain_token_from_req(req)?;
 
+        
         self.initial_validation(jwt.header,&jwt.token)?;
+        
+        println!("Hole, perros");
 
         return Ok(Some(Session::new_with_values(self.clone(), jwt.payload)))
     

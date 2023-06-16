@@ -27,7 +27,7 @@ pub struct JWT {
     pub token: String
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 
 pub struct JWK {
 
