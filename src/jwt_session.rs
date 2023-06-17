@@ -1,17 +1,8 @@
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose};
-use jwt_simple::prelude::{HS256Key, RS256PublicKey, RSAPublicKeyLike, VerificationOptions, NoCustomClaims, MACLike};
 use serde_json::Value;
 use crate::{Error, Header, jwt::{JWK, JWT}};
 use cataclysm::{http::Request, session::{Session, SessionCreator}};
-
-/// Possible signing algorithms for JWT. There are more, but only basic ones are provided.
-/// If none is chosen, then no sign validation will be made.
-#[derive(PartialEq,Eq)]
-pub enum SigningAlgorithm {
-    RS256,
-    HS256
-}
 
 #[derive(Clone)]
 /// A priori information to valdiate JWT: Who issued it, who is intended to read it and which algorithm was used to preserve information unchanged.
@@ -20,16 +11,16 @@ pub enum SigningAlgorithm {
 pub struct JWTAsymmetricSession {
     pub aud: String,
     pub iss: String,
-    key_store: Vec<(JWK,RS256PublicKey)>,
-    verification_options: Option<VerificationOptions>,
+    key_store: Vec<(JWK)>,
+    // verification_options: Option<VerificationOptions>,
 }
 
 #[derive(Clone)]
 pub struct JWTSymmetricSession {
     pub aud: String,
     pub iss: String,
-    secret_key: HS256Key,
-    verification_options: Option<VerificationOptions>,
+    // secret_key: HS256Key,
+    // verification_options: Option<VerificationOptions>,
 }
 
 /// Builder to create a JWTSession easily.
@@ -39,14 +30,14 @@ pub struct JWTSymmetricSessionBuilder {
     aud: Option<String>,
     iss: Option<String>,
     secret_key: Option<String>,
-    verification_options: Option<VerificationOptions>,
+    // verification_options: Option<VerificationOptions>,
 }
 
 pub struct JWTAsymmetricSessionBuilder {
     aud: Option<String>,
     iss: Option<String>,
     public_keys_url: Option<String>,
-    verification_options: Option<VerificationOptions>,
+    // verification_options: Option<VerificationOptions>,
 }
 
 impl JWTSessionBuilder {
@@ -55,7 +46,7 @@ impl JWTSessionBuilder {
             aud: None,
             iss: None,
             secret_key: None,
-            verification_options: None
+            // verification_options: None
         }
     }
 
@@ -64,7 +55,7 @@ impl JWTSessionBuilder {
             aud: None,
             iss: None,
             public_keys_url: None,
-            verification_options: None
+            // verification_options: None
         }
     }
 }
@@ -85,12 +76,12 @@ impl JWTSymmetricSessionBuilder {
         }
     }
 
-    pub fn verification_options(self, verification_options: VerificationOptions) -> Self {
-        Self {
-            verification_options: Some(verification_options),
-            ..self
-        }
-    }
+    // pub fn verification_options(self, verification_options: VerificationOptions) -> Self {
+    //     Self {
+    //         verification_options: Some(verification_options),
+    //         ..self
+    //     }
+    // }
 
     pub fn hs256_key<A: AsRef<str>>(self, hs256: A) -> Self {
         Self {
@@ -120,15 +111,15 @@ impl JWTSymmetricSessionBuilder {
                 return Err(Error::SecretKeyError);
             },
             Some(sk) => {
-                HS256Key::from_bytes(sk.as_bytes())
+                // HS256Key::from_bytes(sk.as_bytes())
             }
         };
 
         Ok(JWTSymmetricSession {
             aud,    
             iss,
-            secret_key,
-            verification_options: self.verification_options
+            // secret_key,
+            // verification_options: self.verification_options
         })
 
     }
@@ -145,12 +136,12 @@ impl JWTAsymmetricSessionBuilder {
         }
     }
 
-    pub fn verification_options(self, verification_options: VerificationOptions) -> Self {
-        Self {
-            verification_options: Some(verification_options),
-            ..self
-        }
-    }
+    // pub fn verification_options(self, verification_options: VerificationOptions) -> Self {
+    //     Self {
+    //         verification_options: Some(verification_options),
+    //         ..self
+    //     }
+    // }
 
     pub fn issuer<A: AsRef<str>>(self, iss: A) -> Self {
         Self {
@@ -182,30 +173,33 @@ impl JWTAsymmetricSessionBuilder {
             Some(i) => i
         };
 
-        let key_store: Vec<(JWK,RS256PublicKey)> = match self.public_keys_url {
-            None => {
-                return Err(Error::KeyStoreError);
-            },
-            Some(ks) => {
+        // let key_store: Vec<(JWK,RS256PublicKey)> = match self.public_keys_url {
+        //     None => {
+        //         return Err(Error::KeyStoreError);
+        //     },
+        //     Some(ks) => {
 
-                let body = reqwest::get(ks).await.map_err(|e| Error::ReqwestError(e))?.text().await.map_err(|e| Error::ReqwestError(e))?;
+        //         let body = reqwest::get(ks).await.map_err(|e| Error::ReqwestError(e))?.text().await.map_err(|e| Error::ReqwestError(e))?;
 
-                serde_json::from_str::<HashMap<String,Vec<JWK>>>(&body).map_err(|e| Error::SerdeError(e))?.get("keys").ok_or(Error::KeyStoreError)?.into_iter().map(|k| -> Result<(JWK,RS256PublicKey),Error> {
+        //         serde_json::from_str::<HashMap<String,Vec<JWK>>>(&body).map_err(|e| Error::SerdeError(e))?.get("keys").ok_or(Error::KeyStoreError)?.into_iter().map(|k| -> Result<(JWK,RS256PublicKey),Error> {
 
-                    let rskey = RS256PublicKey::from_components(k.n.as_bytes(), k.e.as_bytes()).map_err(|e| Error::RS256PublicKey(e))?;
-                    Ok((k.clone(),rskey))
+        //             let rskey = RS256PublicKey::from_components(k.n.as_bytes(), k.e.as_bytes()).map_err(|e| Error::RS256PublicKey(e))?;
+        //             Ok((k.clone(),rskey))
                 
-                }).collect::<Result<Vec<(JWK,RS256PublicKey)>,_>>()?
+        //         }).collect::<Result<Vec<(JWK,RS256PublicKey)>,_>>()?
             
-            }
-        };
+        //     }
+        // };
 
-        Ok(JWTAsymmetricSession {
-            aud,    
-            iss,
-            key_store,
-            verification_options: self.verification_options
-        })
+        panic!();
+
+        // Ok(JWTAsymmetricSession {
+        //     aud,    
+        //     iss,
+        //     key_store,
+        //     verification_options: self.verification_options
+        // })
+        
     }
 
 }
@@ -310,8 +304,7 @@ pub trait JWTSession: SessionCreator {
         
         Ok(JWT {
             header,
-            payload,
-            token
+            payload
         })
     }
 
@@ -337,21 +330,23 @@ impl JWTSession for JWTAsymmetricSession {
             }
         }
 
-        // Check key id
-        let key = self.key_store.iter().filter(|jwk| {
-            header.kid == jwk.0.kid
-        }).collect::<Vec<&(JWK,RS256PublicKey)>>();
+        panic!();
 
-        if key.len() > 1 || key.len() == 0 {
-            return Err(Error::KeyLenght)
-        }
+        // // Check key id
+        // let key = self.key_store.iter().filter(|jwk| {
+        //     header.kid == jwk.0.kid
+        // }).collect::<Vec<&(JWK,RS256PublicKey)>>();
 
-        println!("{:?}",key[0].1);
-        // check signature and use verification options
-        key[0].1.verify_token::<NoCustomClaims>(token_str.as_ref(), None).map_err(|e| {
-            println!("{}",e);
-            return Error::VerificationFailed(e);
-        }).map(|_| {()})
+        // if key.len() > 1 || key.len() == 0 {
+        //     return Err(Error::KeyLenght)
+        // }
+
+        // println!("{:?}",key[0].1);
+        // // check signature and use verification options
+        // key[0].1.verify_token::<NoCustomClaims>(token_str.as_ref(), None).map_err(|e| {
+        //     println!("{}",e);
+        //     return Error::VerificationFailed(e);
+        // }).map(|_| {()})
     
     }
 
@@ -359,12 +354,11 @@ impl JWTSession for JWTAsymmetricSession {
 
         let jwt = Self::obtain_token_from_req(req)?;
 
+        panic!();
         
-        self.initial_validation(jwt.header,&jwt.token)?;
-        
-        println!("Hole, perros");
+        // self.initial_validation(jwt.header,&jwt.token)?;
 
-        return Ok(Some(Session::new_with_values(self.clone(), jwt.payload)))
+        // return Ok(Some(Session::new_with_values(self.clone(), jwt.payload)))
     
     }
 
@@ -385,16 +379,21 @@ impl JWTSession for JWTSymmetricSession {
             }
         }
 
-        self.secret_key.verify_token::<NoCustomClaims>(token_str.as_ref(), self.verification_options.clone()).map_err(|e| Error::VerificationFailed(e)).map(|_| {()})
+        panic!();
+
+        // self.secret_key.verify_token::<NoCustomClaims>(token_str.as_ref(), self.verification_options.clone()).map_err(|e| Error::VerificationFailed(e)).map(|_| {()})
 
     }
 
     fn build_session_from_req(&self, req: &Request) -> Result<Option<Session>,Error> {
-        let jwt = Self::obtain_token_from_req(req)?;
 
-        self.initial_validation(jwt.header,&jwt.token)?;
+        panic!()
 
-        return Ok(Some(Session::new_with_values(self.clone(), jwt.payload)))
+        // let jwt = Self::obtain_token_from_req(req)?;
+
+        // self.initial_validation(jwt.header,&jwt.token)?;
+
+        // return Ok(Some(Session::new_with_values(self.clone(), jwt.payload)))
     }
 
 }

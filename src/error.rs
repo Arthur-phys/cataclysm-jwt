@@ -27,10 +27,12 @@ pub enum Error {
     /// Reqwest error. URL for key store may be unreachable
     ReqwestError(reqwest::Error),
     /// Error while constructing jwt rs256 public key
-    RS256PublicKey(jwt_simple::Error),
     KeyLenght,
-    VerificationFailed(jwt_simple::Error),
-    PayloadError
+    PayloadError,
+    UnprotectedJWT,
+    VerificationError(ring::error::Unspecified),
+    JWTParts,
+    Custom(String)
 }
 
 impl std::fmt::Display for Error {
@@ -51,10 +53,12 @@ impl std::fmt::Display for Error {
             Error::AlgorithmMatch => format!("Signing algorithm from jwt and server do not match!"),
             Error::KeyStoreError => format!("Key store string is empty"),
             Error::ReqwestError(e) => format!("Reqwest error: {}",e),
-            Error::RS256PublicKey(e) => format!("RS256 public key could not be read and converted: {}",e),
             Error::KeyLenght => format!("There is more than one key with same id present in JWKS or no key at all"),
-            Error::VerificationFailed(e) => format!("Verification failed for JWT: {}",e),
-            Error::PayloadError => format!("To string conversion failed for payload!")
+            Error::PayloadError => format!("To string conversion failed for payload!"),
+            Error::UnprotectedJWT => format!("Could not for unprotected JWT for validation!"),
+            Error::VerificationError(e) => format!("Verification failed for JWT! {}",e),
+            Error::Custom(s) => format!("{}",s),
+            Error::JWTParts => format!("Parts on jwt token are more or less than three! (format should be 'a.b.c')")
         };
 
         write!(f,"{}",writing)
