@@ -144,7 +144,7 @@ mod test {
         let payload = HashMap::from([(String::from("issuer"),String::from("arthurphys"))]);
         let unsecured_jwt = JWT::from_parts(header,payload);
 
-        let asym_key = RS256::new("s", "s")?;
+        let asym_key = RS256::new("", "../private_key.pem")?;
         let secured_jwt = asym_key.sign_jwt(unsecured_jwt)?;
         
         asym_key.verify_jwt(secured_jwt).map(|_| ())
