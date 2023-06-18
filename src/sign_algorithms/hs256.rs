@@ -1,25 +1,37 @@
-use std::collections::HashMap;
-
 use crate::{Error, JWT, Header};
 
+use std::collections::HashMap;
 use ring::hmac::{self, Key};
 use base64::{Engine as _, engine::general_purpose};
 use serde_json::Value;
 
 /// Simple wrapper over HMAC_SHA256 key from ring
 pub struct HS256 {
-    pub key: Key
+    key: Key,
+    internal_key: Option<Key>
 }
 
 impl HS256 {
     
     /// New instance from a priori known secret
-    pub fn new<A: AsRef<str>>(secret: A) -> Self {
+    pub fn new<A: AsRef<str>, B: AsRef<str>>(secret: A, internal_secret: B) -> Self {
         
         let key = hmac::Key::new(hmac::HMAC_SHA256, secret.as_ref().as_bytes());
+        let internal_key = Some(hmac::Key::new(hmac::HMAC_SHA256, internal_secret.as_ref().as_bytes()));
 
         Self {
-            key
+            key,
+            internal_key
+        }
+
+    }
+
+    pub fn new_simple<A: AsRef<str>>(secret: A) -> Self {
+
+        let key = hmac::Key::new(hmac::HMAC_SHA256, secret.as_ref().as_bytes());
+        Self {
+            key,
+            internal_key: None
         }
 
     }
@@ -58,7 +70,7 @@ impl HS256 {
             Err(e) => return Err(Error::DecodeError(e))
         };
 
-        // COnvert payload to json string
+        // Convert payload to json string
         let payload_str =  match general_purpose::URL_SAFE_NO_PAD.decode(payloadb64_str) {
             Ok(p) => match std::str::from_utf8(&p) {
                 Ok(p_s) => p_s.to_string(),
@@ -88,7 +100,7 @@ impl HS256 {
     /// Sign created JWT with shared secret.
     /// This function can be used in a context where the server is acting as an authorization server and not a
     /// resource server.
-    pub fn sign_jwt(&self, jwt: JWT) -> String {
+    pub fn sign_jwt(&self, jwt: JWT) -> Result<String,Error> {
 
         // Obtains both params
         let header = jwt.header;
@@ -101,11 +113,20 @@ impl HS256 {
         // Creates no-signature jwt
         let unsecure_jwt = format!("{}.{}",header_str,payload_str);
 
-        // Obtains signature
-        let sign = general_purpose::URL_SAFE_NO_PAD.encode(hmac::sign(&self.key, unsecure_jwt.as_bytes()).as_ref());
-
-        // Returs signed jwt
-        format!("{}.{}",unsecure_jwt,sign)
+        // Verifies that internal key exists
+        match self.internal_key.as_ref() {
+            Some(internal_key) => {
+                
+                // Obtain signature
+                let sign = general_purpose::URL_SAFE_NO_PAD.encode(hmac::sign(&internal_key, unsecure_jwt.as_bytes()).as_ref());
+                // Returs signed jwt
+                return Ok(format!("{}.{}",unsecure_jwt,sign));
+            
+            },
+            None => {
+                return Err(Error::NoInternalKey);
+            }
+        };
 
     }
 
@@ -124,9 +145,9 @@ mod test {
         let unsecured_jwt = JWT::from_parts(header,payload);
         
         let secret = "Doggies";
-        let sym_key = HS256::new(secret);
+        let sym_key = HS256::new(secret,secret);
         
-        let secured_jwt = sym_key.sign_jwt(unsecured_jwt);
+        let secured_jwt = sym_key.sign_jwt(unsecured_jwt)?;
         
         sym_key.verify_jwt(secured_jwt).map(|_| ())
 

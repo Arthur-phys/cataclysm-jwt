@@ -32,6 +32,7 @@ pub enum Error {
     UnprotectedJWT,
     VerificationError(ring::error::Unspecified),
     JWTParts,
+    NoInternalKey,
     Custom(String)
 }
 
@@ -58,7 +59,8 @@ impl std::fmt::Display for Error {
             Error::UnprotectedJWT => format!("Could not for unprotected JWT for validation!"),
             Error::VerificationError(e) => format!("Verification failed for JWT! {}",e),
             Error::Custom(s) => format!("{}",s),
-            Error::JWTParts => format!("Parts on jwt token are more or less than three! (format should be 'a.b.c')")
+            Error::JWTParts => format!("Parts on jwt token are more or less than three! (format should be 'a.b.c')"),
+            Error::NoInternalKey => format!("Internal key was not specified when struct was created")
         };
 
         write!(f,"{}",writing)
