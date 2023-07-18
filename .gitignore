@@ -1,3 +1,4 @@
 /target
 *.pem
+*.pk8
 *.der
