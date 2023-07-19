@@ -1,6 +1,12 @@
 #[derive(Debug)]
 pub enum JWTError {
-    JWTParts
+    JWTParts,
+    Header,
+    PayloadField,
+    HeaderField,
+    MissingKey,
+    WrongAlgorithm,
+    NoAlgorithm
 }
 
 #[derive(Debug)]
@@ -11,12 +17,21 @@ pub enum KeyError {
 }
 
 #[derive(Debug)]
+pub enum ConstructionError {
+    Aud,
+    Iss,
+    Keys
+}
+
+#[derive(Debug)]
 pub enum Error {
     JWT(JWTError),
     Key(KeyError),
     File(std::io::Error),
     Decode(base64::DecodeError),
     Serde(serde_json::Error),
+    Construction(ConstructionError),
+    UTF8(std::str::Utf8Error)
 }
 
 impl From<base64::DecodeError> for Error {

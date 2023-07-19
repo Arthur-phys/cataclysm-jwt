@@ -1,7 +1,11 @@
+use std::fmt::Display;
+
 use base64::{Engine as _, engine::general_purpose};
 use ring::hmac::{self, Key};
 
 use crate::error::{Error, JWTError, KeyError};
+
+use super::JWTAlgorithm;
 
 /// Simple wrapper over HMAC_SHA256 key from ring
 pub struct HS256 {
@@ -20,12 +24,21 @@ impl HS256 {
 
     }
 
+}
+
+impl Display for HS256 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"hs256")
+    }
+}
+
+impl JWTAlgorithm for HS256 {
     /// JWT verification starting from the string with format 'a.b.c'
     /// Returns a new instance of a JWT
-    pub fn verify_jwt<A: AsRef<str>>(&self, jwt: A) -> Result<(),Error> {
+    fn verify_jwt(&self, jwt: &str) -> Result<(),Error> {
 
         // Split jwt by '.'
-        let jwt_parts = jwt.as_ref().split('.').collect::<Vec<&str>>();
+        let jwt_parts = jwt.split('.').collect::<Vec<&str>>();
 
         if jwt_parts.len() != 3 {
             return Err(Error::JWT(JWTError::JWTParts))
@@ -50,11 +63,11 @@ impl HS256 {
     /// Sign created JWT with shared secret.
     /// This function can be used in a context where the server is acting as an authorization server and not a
     /// resource server.
-    pub fn sign_jwt<A: AsRef<str>, B: AsRef<str>>(&self, headers: A, payload: B) -> String {
+    fn sign_jwt(&self, headers: &str, payload: &str) -> Result<String,Error> {
 
         // Encodes them without pading
-        let header_str = general_purpose::URL_SAFE_NO_PAD.encode(headers.as_ref());
-        let payload_str = general_purpose::URL_SAFE_NO_PAD.encode(payload.as_ref());
+        let header_str = general_purpose::URL_SAFE_NO_PAD.encode(headers);
+        let payload_str = general_purpose::URL_SAFE_NO_PAD.encode(payload);
 
         // Creates no-signature jwt
         let unsecure_jwt = format!("{}.{}",header_str,payload_str);
@@ -62,15 +75,14 @@ impl HS256 {
         // Verifies that internal key exists
         let sign = general_purpose::URL_SAFE_NO_PAD.encode(hmac::sign(&self.key, unsecure_jwt.as_bytes()).as_ref());
         // Returs signed jwt
-        format!("{}.{}",unsecure_jwt,sign)
+        Ok(format!("{}.{}",unsecure_jwt,sign))
         
         }
-
-    }
+}
 
 #[cfg(test)]
 mod test {
-    use crate::{Error, sign_algorithms::HS256};
+    use crate::{Error, sign_algorithms::{HS256, JWTAlgorithm}};
 
     #[test]
     fn verify_signing_hs256() -> Result<(),Error> {
@@ -81,9 +93,9 @@ mod test {
 
         let sym_key = HS256::new(secret);
         
-        let secured_jwt = sym_key.sign_jwt(&header,&payload);
+        let secured_jwt = sym_key.sign_jwt(&header,&payload)?;
         
-        sym_key.verify_jwt(secured_jwt)
+        sym_key.verify_jwt(&secured_jwt)
 
     }
 

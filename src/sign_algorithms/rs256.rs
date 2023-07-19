@@ -3,6 +3,7 @@ use crate::sign_algorithms::JWTAlgorithm;
 
 use ring::{rand, signature, signature::{UnparsedPublicKey, RsaKeyPair}};
 use base64::{Engine as _, engine::general_purpose};
+use std::fmt::Display;
 use std::{path::Path, io::Read};
 
 pub enum Kind {
@@ -38,6 +39,12 @@ impl RS256 {
             kind: Kind::Verifiying(public_key)    
         })
 
+    }
+}
+
+impl Display for RS256 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"rs256")
     }
 }
 
