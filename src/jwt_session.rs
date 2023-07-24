@@ -3,19 +3,22 @@ use base64::{engine::general_purpose, Engine};
 use serde_json::Value;
 use std::collections::HashMap;
 
-use crate::{sign_algorithms::JWTAlgorithm, Error, error::{ConstructionError, JWTError}, JWT};
+use crate::{sign_algorithms::{HS256, RS256}, Error, error::{ConstructionError, JWTError, KeyError}, JWT};
 
+#[derive(Clone)]
 pub struct JWTSession {
     pub aud: String,
     pub iss: String,
-    pub keys: HashMap<String,Box<dyn JWTAlgorithm>>
+    pub signing_key: HS256,
+    pub verification_keys: HashMap<String,RS256>
 }
 
 #[derive(Default)]
 pub struct JWTSessionBuilder {
     aud: Option<String>,
     iss: Option<String>,
-    keys: Option<HashMap<String,Box<dyn JWTAlgorithm>>>
+    pub signing_key: Option<HS256>,
+    pub verification_keys: Option<HashMap<String,RS256>>
 }
 
 impl JWTSessionBuilder {
@@ -34,31 +37,48 @@ impl JWTSessionBuilder {
         }
     }
 
-    pub fn add_keys(self,keys: HashMap<String, Box<dyn JWTAlgorithm>>) -> Self {
+    pub fn signing_key(self, key: HS256) -> Self {
         Self {
-            keys: Some(keys),
+            signing_key: Some(key),
             ..self
         }
     }
 
-    pub fn add_key<A: AsRef<str>>(self, name: A, key: Box<dyn JWTAlgorithm>) -> Self {
-        
-        let keys = match self.keys {
-            Some(mut ks) => {
-                ks.insert(name.as_ref().to_string(), key);
-                ks
+    pub fn add_verification_key<A: AsRef<str>>(self, key: RS256, kid: A) -> Self {
+
+        let vk = match self.verification_keys {
+            Some(mut v) => {
+                v.insert(kid.as_ref().to_string(), key);
+                v
             },
             None => {
-                let mut new = HashMap::new();
-                new.insert(name.as_ref().to_string(), key);
-                new
+                HashMap::from([(kid.as_ref().to_string(),key)])
             }
         };
 
         Self {
-            keys: Some(keys),
+            verification_keys: Some(vk),
             ..self
         }
+    }
+
+    pub async fn add_from_jwks<A: AsRef<str>>(self, url: A) -> Result<Self,Error> {
+
+        let jwks = reqwest::get(url.as_ref()).await?.text().await?;
+        
+        let jwks_hm = serde_json::from_str::<HashMap<String,Value>>(&jwks)?.into_iter().map(|(k,v)| -> Result<(String,HashMap<String,String>),Error> {
+            let v = if v.is_string() {
+                v.as_str().ok_or(Error::JWT(JWTError::JWKS))?.to_string()
+            } else {
+                v.to_string()
+            };
+            Ok((k,v))
+        }).collect::<Result<HashMap<String,String>,_>>()?;
+
+
+
+        todo!()
+
     }
 
     pub fn build(self) -> Result<JWTSession, Error> {
@@ -77,17 +97,25 @@ impl JWTSessionBuilder {
             }
         };
 
-        let keys = match self.keys {
+        let signing_key = match self.signing_key {
             Some(k) => k,
             None => {
                 return Err(Error::Construction(ConstructionError::Keys));
+            }
+        };
+
+        let verification_keys = match self.verification_keys {
+            Some(k) => k,
+            None => {
+                return Err(Error::Construction(ConstructionError::Keys))
             }
         };
         
         Ok(JWTSession {
             aud,
             iss,
-            keys
+            verification_keys,
+            signing_key
         })
     }
 
@@ -163,15 +191,23 @@ impl JWTSession {
         })
     }
 
-    fn initial_validation(&self,header: &HashMap<String, String>, signature: &str) -> Result<(),Error> {
+    fn initial_validation(&self, header: &HashMap<String, String>, jwt: &str) -> Result<(),Error> {
 
         // Check the algorithm
-        let signing_key = match header.get("alg") {
+        let kid = match header.get("kid") {
+            Some(id) => id,
+            None => {
+                return Err(Error::Key(KeyError::Kid))
+            }
+        };
+
+        let verification_key = match header.get("alg") {
             Some(a) => {
-                let key = match &self.keys.get("signature") {
+                let possible_key = self.verification_keys.get(kid);
+                let key = match possible_key {
                     Some(k) => k,
                     None => {
-                        return Err(Error::JWT(JWTError::MissingKey));
+                        return Err(Error::JWT(JWTError::JWKS));
                     }
                 };
                 if a.to_lowercase().as_str() != key.to_string() {
@@ -184,16 +220,16 @@ impl JWTSession {
             }
         };
 
-        
+        verification_key.verify_jwt(jwt)
 
-        Ok(())
     }
 
     fn build_from_req(&self, req: &Request) -> Result<Option<Session>, Error> {
         
         let jwt = Self::obtain_token_from_req(req)?;
         
-        self.initial_validation(&jwt.header)?;
+        self.initial_validation(&jwt.header,&jwt.signature)?;
+
         return Ok(Some(Session::new_with_values(self.clone(), jwt.payload)))
 
 
@@ -203,12 +239,22 @@ impl JWTSession {
 
 impl SessionCreator for JWTSession {
 
-    fn apply(&self, values: &HashMap<String, String>, res: cataclysm::http::Response) -> cataclysm::http::Response {
-        
+    fn apply(&self, _values: &HashMap<String, String>, res: cataclysm::http::Response) -> cataclysm::http::Response {
+        res
     }
 
     fn create(&self, req: &cataclysm::http::Request) -> Result<cataclysm::session::Session, cataclysm::Error> {
-        
+        match self.build_from_req(req) {
+            Ok(Some(s)) => {
+                Ok(s)
+            },
+            Ok(None) => {
+                return Err(cataclysm::Error::Custom(String::from("No JWT session found and one cannot be provided by server")))
+            }
+            Err(_) => {
+                return Err(cataclysm::Error::Custom(format!("some error!")));
+            }
+        }
     }
 
 }

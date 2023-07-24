@@ -5,9 +5,8 @@ use ring::hmac::{self, Key};
 
 use crate::error::{Error, JWTError, KeyError};
 
-use super::JWTAlgorithm;
-
 /// Simple wrapper over HMAC_SHA256 key from ring
+#[derive(Clone)]
 pub struct HS256 {
     key: Key
 }
@@ -19,23 +18,33 @@ impl HS256 {
         
         let key = hmac::Key::new(hmac::HMAC_SHA256, secret.as_ref().as_bytes());
         Self {
-            key,
+            key
         }
 
     }
 
-}
+    /// Sign created JWT with shared secret.
+    /// This function can be used in a context where the server is acting as an authorization server and not a
+    /// resource server.
+    pub fn sign_jwt(&self, headers: &str, payload: &str) -> Result<String,Error> {
 
-impl Display for HS256 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"hs256")
+        // Encodes them without pading
+        let header_str = general_purpose::URL_SAFE_NO_PAD.encode(headers);
+        let payload_str = general_purpose::URL_SAFE_NO_PAD.encode(payload);
+
+        // Creates no-signature jwt
+        let unsecure_jwt = format!("{}.{}",header_str,payload_str);
+
+        // Verifies that internal key exists
+        let sign = general_purpose::URL_SAFE_NO_PAD.encode(hmac::sign(&self.key, unsecure_jwt.as_bytes()).as_ref());
+        // Returs signed jwt
+        Ok(format!("{}.{}",unsecure_jwt,sign))
+        
     }
-}
 
-impl JWTAlgorithm for HS256 {
     /// JWT verification starting from the string with format 'a.b.c'
     /// Returns a new instance of a JWT
-    fn verify_jwt(&self, jwt: &str) -> Result<(),Error> {
+    pub fn verify_jwt(&self, jwt: &str) -> Result<(),Error> {
 
         // Split jwt by '.'
         let jwt_parts = jwt.split('.').collect::<Vec<&str>>();
@@ -60,29 +69,17 @@ impl JWTAlgorithm for HS256 {
 
     }
 
-    /// Sign created JWT with shared secret.
-    /// This function can be used in a context where the server is acting as an authorization server and not a
-    /// resource server.
-    fn sign_jwt(&self, headers: &str, payload: &str) -> Result<String,Error> {
+}
 
-        // Encodes them without pading
-        let header_str = general_purpose::URL_SAFE_NO_PAD.encode(headers);
-        let payload_str = general_purpose::URL_SAFE_NO_PAD.encode(payload);
-
-        // Creates no-signature jwt
-        let unsecure_jwt = format!("{}.{}",header_str,payload_str);
-
-        // Verifies that internal key exists
-        let sign = general_purpose::URL_SAFE_NO_PAD.encode(hmac::sign(&self.key, unsecure_jwt.as_bytes()).as_ref());
-        // Returs signed jwt
-        Ok(format!("{}.{}",unsecure_jwt,sign))
-        
-        }
+impl Display for HS256 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"hs256")
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{Error, sign_algorithms::{HS256, JWTAlgorithm}};
+    use crate::{Error, sign_algorithms::HS256};
 
     #[test]
     fn verify_signing_hs256() -> Result<(),Error> {

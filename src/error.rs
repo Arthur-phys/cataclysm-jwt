@@ -1,12 +1,15 @@
+use openssl::error::ErrorStack;
+
 #[derive(Debug)]
 pub enum JWTError {
     JWTParts,
     Header,
+    JWKS,
     PayloadField,
     HeaderField,
     MissingKey,
     WrongAlgorithm,
-    NoAlgorithm
+    NoAlgorithm,
 }
 
 #[derive(Debug)]
@@ -14,6 +17,7 @@ pub enum KeyError {
     Verification(ring::error::Unspecified),
     Rejected(ring::error::KeyRejected),
     KeyType,
+    Kid,
 }
 
 #[derive(Debug)]
@@ -31,7 +35,9 @@ pub enum Error {
     Decode(base64::DecodeError),
     Serde(serde_json::Error),
     Construction(ConstructionError),
-    UTF8(std::str::Utf8Error)
+    UTF8(std::str::Utf8Error),
+    OpenSSL(ErrorStack),
+    Reqwest(reqwest::Error)
 }
 
 impl From<base64::DecodeError> for Error {
@@ -55,5 +61,23 @@ impl From<ring::error::KeyRejected> for Error {
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
         Error::File(value)
+    }
+}
+
+impl From<ErrorStack> for Error {
+    fn from(value: ErrorStack) -> Self {
+        Error::OpenSSL(value)
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(value: reqwest::Error) -> Self {
+        Error::Reqwest(value)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Error::Serde(value)
     }
 }
