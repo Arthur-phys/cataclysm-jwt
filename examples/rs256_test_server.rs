@@ -1,5 +1,5 @@
 use cataclysm::{Server, Branch, http::{Response, Method}, session::Session};
-use cataclysm_jwt::{jwt_session::JWTSession, Error};
+use cataclysm_jwt::{jwt_session::JWTRS256Session, Error};
  
 async fn index(session: Session) -> Response {
     let iat = session.get("iat").unwrap();
@@ -14,7 +14,7 @@ async fn main() -> Result<(),Error> {
     let server = Server::builder(
         Branch::<()>::new("/").with(Method::Get.to(index))
     ).session_creator(
-        JWTSession::builder().aud("8cabf9ee-bd50-4d95-bfec-0aba7fb5fdba")
+        JWTRS256Session::builder().aud("8cabf9ee-bd50-4d95-bfec-0aba7fb5fdba")
         .iss("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam")
         .add_from_jwks("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam/keys")
         .await?
