@@ -16,7 +16,6 @@ async fn main() -> Result<(),Error> {
     ).session_creator(
         JWTSession::builder().aud("8cabf9ee-bd50-4d95-bfec-0aba7fb5fdba")
         .iss("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam")
-        .signing_key_from_secret("Perritos")
         .add_from_jwks("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam/keys")
         .await?
         .build()?

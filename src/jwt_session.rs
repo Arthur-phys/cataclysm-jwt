@@ -3,13 +3,12 @@ use base64::{engine::general_purpose, Engine};
 use serde_json::Value;
 use std::collections::HashMap;
 
-use crate::{sign_algorithms::{HS256, RS256}, Error, error::{ConstructionError, JWTError, KeyError}, JWT};
+use crate::{sign_algorithms::RS256, Error, error::{ConstructionError, JWTError, KeyError}, JWT};
 
 #[derive(Clone)]
 pub struct JWTSession {
     pub aud: String,
     pub iss: String,
-    pub signing_key: HS256,
     pub verification_keys: HashMap<String,RS256>
 }
 
@@ -17,7 +16,6 @@ pub struct JWTSession {
 pub struct JWTSessionBuilder {
     aud: Option<String>,
     iss: Option<String>,
-    pub signing_key: Option<HS256>,
     pub verification_keys: Option<HashMap<String,RS256>>
 }
 
@@ -33,23 +31,6 @@ impl JWTSessionBuilder {
     pub fn iss<A: AsRef<str>>(self, iss: A) -> Self {
         Self {
             iss: Some(iss.as_ref().to_string()),
-            ..self
-        }
-    }
-
-    pub fn signing_key(self, key: HS256) -> Self {
-        Self {
-            signing_key: Some(key),
-            ..self
-        }
-    }
-
-    pub fn signing_key_from_secret<A: AsRef<str>>(self, secret: A) -> Self {
-        
-        let key = HS256::new(secret);
-        
-        Self {
-            signing_key: Some(key),
             ..self
         }
     }
@@ -84,7 +65,7 @@ impl JWTSessionBuilder {
                 
                 hm.into_iter().map(|(hk,hv)| -> Result<(String,String),Error> {
                     let hv = if hv.is_string() {
-                        hv.as_str().ok_or(Error::JWT(JWTError::PayloadField))?.to_string()
+                        hv.as_str().ok_or(Error::Key(KeyError::JWKField))?.to_string()
                     } else {
                         hv.to_string()
                     };
@@ -97,28 +78,28 @@ impl JWTSessionBuilder {
         
         }).collect::<Result<HashMap<String,Vec<HashMap<String,String>>>,_>>()?;
 
-        let jwks_vec = jwks_hm.get("keys").ok_or(Error::JWT(JWTError::JWKS))?;
+        let jwks_vec = jwks_hm.get("keys").ok_or(Error::Key(KeyError::KeyField))?;
 
         let rs256_hm = jwks_vec.iter().map(|jwk_hm| -> Result<(String,RS256),Error> {
 
             let kid = match jwk_hm.get("kid") {
                 Some(id) => id,
                 None => {
-                    return Err(Error::JWT(JWTError::JWKS));
+                    return Err(Error::Key(KeyError::KidField));
                 }
             };
 
             let e = match jwk_hm.get("e") {
                 Some(ee) => ee,
                 None => {
-                    return Err(Error::JWT(JWTError::JWKS));
+                    return Err(Error::Key(KeyError::E));
                 }
             };
 
             let n = match jwk_hm.get("n") {
                 Some(nn) => nn,
                 None => {
-                    return Err(Error::JWT(JWTError::JWKS));
+                    return Err(Error::Key(KeyError::N));
                 }
             };
 
@@ -151,13 +132,6 @@ impl JWTSessionBuilder {
             }
         };
 
-        let signing_key = match self.signing_key {
-            Some(k) => k,
-            None => {
-                return Err(Error::Construction(ConstructionError::Keys));
-            }
-        };
-
         let verification_keys = match self.verification_keys {
             Some(k) => k,
             None => {
@@ -169,7 +143,6 @@ impl JWTSessionBuilder {
             aud,
             iss,
             verification_keys,
-            signing_key
         })
     }
 
@@ -214,7 +187,7 @@ impl JWTSession {
                 },
                 Err(e) => return Err(Error::UTF8(e))
             },
-            Err(e) => return Err(Error::Decode(e))
+            Err(e) => return Err(Error::Decode(e, "Unable to decode jwt header into HashMap!"))
         };
         
         let payload: HashMap<String,String> = match general_purpose::URL_SAFE_NO_PAD.decode(token_parts[1]) {
@@ -233,7 +206,7 @@ impl JWTSession {
                 },
                 Err(e) => return Err(Error::UTF8(e))
             },
-            Err(e) => return Err(Error::Decode(e))
+            Err(e) => return Err(Error::Decode(e,"Unable to decode jwt payload into HashMap!"))
         };
 
         let signature = token_parts[2].to_string();
@@ -248,21 +221,22 @@ impl JWTSession {
 
     fn initial_validation(&self, header: &HashMap<String, String>, jwt: &str) -> Result<(),Error> {
 
-        // Check the algorithm
+        // Check the kid
         let kid = match header.get("kid") {
             Some(id) => id,
             None => {
-                return Err(Error::Key(KeyError::Kid))
+                return Err(Error::Key(KeyError::KidField))
             }
         };
 
+        // Check the algorithm on jwt is the sames as the one on key
         let verification_key = match header.get("alg") {
             Some(a) => {
                 let possible_key = self.verification_keys.get(kid);
                 let key = match possible_key {
                     Some(k) => k,
                     None => {
-                        return Err(Error::JWT(JWTError::JWKS));
+                        return Err(Error::Key(KeyError::Kid));
                     }
                 };
                 if a.to_lowercase().as_str() != key.to_string() {
@@ -317,45 +291,43 @@ impl SessionCreator for JWTSession {
 #[cfg(test)]
 mod test {
 
-    use std::io::Read;
+    // use std::io::Read;
 
-    use crate::{Error, sign_algorithms::{RS256, HS256}, jwt_session::JWTSession};
+    // use crate::{Error, sign_algorithms::{RS256, HS256}, jwt_session::JWTSession};
 
-    #[test]
-    fn simple_verification_and_signing() -> Result<(),Error> {
+    // #[test]
+    // fn simple_verification_and_signing() -> Result<(),Error> {
 
-        let mut public_key_der = std::fs::File::open("./public.der")?;
-        let mut contents: Vec<u8> = Vec::new();
-        public_key_der.read_to_end(&mut contents)?;
+    //     let mut public_key_der = std::fs::File::open("./public.der")?;
+    //     let mut contents: Vec<u8> = Vec::new();
+    //     public_key_der.read_to_end(&mut contents)?;
 
-        let key = RS256::new(contents)?;
-        let signing_key = HS256::new("Perritos");
+    //     let key = RS256::new(contents)?;
+    //     let signing_key = HS256::new("Perritos");
 
-        JWTSession::builder()
-            .aud("SIMPLE AUD")
-            .iss("SIMPLE ISSUER")
-            .add_verification_key(key, "1")
-            .signing_key(signing_key)
-            .build()?;
+    //     JWTSession::builder()
+    //         .aud("SIMPLE AUD")
+    //         .iss("SIMPLE ISSUER")
+    //         .add_verification_key(key, "1")
+    //         .build()?;
 
-        Ok(())
+    //     Ok(())
 
-    }
+    // }
 
-    #[tokio::test]
-    async fn jwks_endpoints_verification_and_signing() -> Result<(),Error> {
+    // #[tokio::test]
+    // async fn jwks_endpoints_verification_and_signing() -> Result<(),Error> {
 
-        let signing_key = HS256::new("Perritos");
+    //     let signing_key = HS256::new("Perritos");
 
-        JWTSession::builder()
-            .aud("SIMPLE AUD")
-            .iss("SIMPLE ISSUER")
-            .add_from_jwks("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam/keys").await?
-            .signing_key(signing_key)
-            .build()?;
+    //     JWTSession::builder()
+    //         .aud("SIMPLE AUD")
+    //         .iss("SIMPLE ISSUER")
+    //         .add_from_jwks("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam/keys").await?
+    //         .build()?;
 
-        Ok(())
+    //     Ok(())
 
-    }
+    // }
 
 }

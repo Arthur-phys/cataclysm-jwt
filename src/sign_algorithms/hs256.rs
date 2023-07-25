@@ -26,7 +26,7 @@ impl HS256 {
     /// Sign created JWT with shared secret.
     /// This function can be used in a context where the server is acting as an authorization server and not a
     /// resource server.
-    pub fn sign_jwt(&self, headers: &str, payload: &str) -> Result<String,Error> {
+    pub fn sign_jwt(&self, headers: &str, payload: &str) -> String {
 
         // Encodes them without pading
         let header_str = general_purpose::URL_SAFE_NO_PAD.encode(headers);
@@ -38,7 +38,7 @@ impl HS256 {
         // Verifies that internal key exists
         let sign = general_purpose::URL_SAFE_NO_PAD.encode(hmac::sign(&self.key, unsecure_jwt.as_bytes()).as_ref());
         // Returs signed jwt
-        Ok(format!("{}.{}",unsecure_jwt,sign))
+        format!("{}.{}",unsecure_jwt,sign)
         
     }
 
@@ -61,7 +61,7 @@ impl HS256 {
         // Create unprotected jwt (i.e. 'a.b' without the signature)
         let unprotected_jwt = format!("{}.{}",headerb64_str,payloadb64_str);
         // Obtain signature without b64 encoding
-        let signature = general_purpose::URL_SAFE_NO_PAD.decode(signatureb64)?;
+        let signature = general_purpose::URL_SAFE_NO_PAD.decode(signatureb64).map_err(|e| Error::Decode(e,"Unable to decode signature from jwt"))?;
 
         // Signature verifiying based on unprotected jwt and signature.
         // If it's incorrect, the function ends here
@@ -90,7 +90,7 @@ mod test {
 
         let sym_key = HS256::new(secret);
         
-        let secured_jwt = sym_key.sign_jwt(&header,&payload)?;
+        let secured_jwt = sym_key.sign_jwt(&header,&payload);
         
         sym_key.verify_jwt(&secured_jwt)
 
