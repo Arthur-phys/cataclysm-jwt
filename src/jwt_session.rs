@@ -66,18 +66,61 @@ impl JWTSessionBuilder {
 
         let jwks = reqwest::get(url.as_ref()).await?.text().await?;
         
-        let jwks_hm = serde_json::from_str::<HashMap<String,Value>>(&jwks)?.into_iter().map(|(k,v)| -> Result<(String,HashMap<String,String>),Error> {
-            let v = if v.is_string() {
-                v.as_str().ok_or(Error::JWT(JWTError::JWKS))?.to_string()
-            } else {
-                v.to_string()
+        let jwks_hm = serde_json::from_str::<HashMap<String,Value>>(&jwks)?.into_iter().map(|(k,v)| -> Result<(String,Vec<HashMap<String,String>>),Error> {
+            
+            let v = v.to_string();
+            let jwk = serde_json::from_str::<Vec<HashMap<String,Value>>>(&v)?.into_iter().map(|hm| -> Result<HashMap<String,String>,Error> {
+                
+                hm.into_iter().map(|(hk,hv)| -> Result<(String,String),Error> {
+                    let hv = if hv.is_string() {
+                        hv.as_str().ok_or(Error::JWT(JWTError::PayloadField))?.to_string()
+                    } else {
+                        hv.to_string()
+                    };
+                    Ok((hk,hv))
+                }).collect::<Result<HashMap<String,String>,Error>>()
+
+            }).collect::<Result<Vec<HashMap<String,String>>,Error>>()?;
+
+            Ok((k,jwk))
+        
+        }).collect::<Result<HashMap<String,Vec<HashMap<String,String>>>,_>>()?;
+
+        let jwks_vec = jwks_hm.get("keys").ok_or(Error::JWT(JWTError::JWKS))?;
+
+        let rs256_hm = jwks_vec.iter().map(|jwk_hm| -> Result<(String,RS256),Error> {
+
+            let kid = match jwk_hm.get("kid") {
+                Some(id) => id,
+                None => {
+                    return Err(Error::JWT(JWTError::JWKS));
+                }
             };
-            Ok((k,v))
-        }).collect::<Result<HashMap<String,String>,_>>()?;
 
+            let e = match jwk_hm.get("e") {
+                Some(ee) => ee,
+                None => {
+                    return Err(Error::JWT(JWTError::JWKS));
+                }
+            };
 
+            let n = match jwk_hm.get("n") {
+                Some(nn) => nn,
+                None => {
+                    return Err(Error::JWT(JWTError::JWKS));
+                }
+            };
 
-        todo!()
+            let rs256 = RS256::new_from_primitives(n, e)?;
+
+            Ok((kid.to_string(),rs256))
+
+        }).collect::<Result<HashMap<String,RS256>,Error>>()?;
+
+        Ok(Self {
+            verification_keys: Some(rs256_hm),
+            ..self
+        })
 
     }
 

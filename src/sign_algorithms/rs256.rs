@@ -3,8 +3,7 @@ use crate::error::{Error, JWTError};
 use openssl::{rsa::Rsa, bn::BigNum};
 use ring::{signature, signature::UnparsedPublicKey};
 use base64::{Engine as _, engine::general_purpose};
-use serde_json::Value;
-use std::{fmt::Display, collections::HashMap};
+use std::fmt::Display;
 
 #[derive(Clone)]
 pub struct RS256 {
