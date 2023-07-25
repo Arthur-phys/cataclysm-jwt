@@ -24,8 +24,8 @@ impl RS256 {
 
     pub fn new_from_primitives<A: AsRef<str>, B: AsRef<str>>(n: A, e: B) -> Result<Self,Error> {
         
-        let n = BigNum::from_dec_str(n.as_ref())?;
-        let e = BigNum::from_dec_str(e.as_ref())?;
+        let n = BigNum::from_hex_str(n.as_ref())?;
+        let e = BigNum::from_hex_str(e.as_ref())?;
 
         let rsa_public = Rsa::from_public_components(n,e)?;
         let rsa_public_der = rsa_public.public_key_to_der()?;
@@ -81,6 +81,15 @@ mod test {
 
     use crate::{Error, sign_algorithms::RS256};
 
+    #[test]
+    fn from_primitives() -> Result<(),Error> {
+
+        let n = "AKfNQkE4bI8xl9BSMH5WbsSBKAWM6C2F8hS6We3xDJCcqRtdUZEBCBiYo5kt3NIWrFjrcusSYYGXnvT8WRLZr0ERoaEwo-bcxHjBCYhDvgIpa1wIG8psgZmLjxxieKHIArcpkhM0Ly8ku8_dWhoSllH-49NANxKE6w8XLQ2R6CGK4x3KTwd0Wcb5nQaE5gfizZA91yZHoGgUL42BZg_s5RFi-U3XdT0Sw65mza-xZop10TO5xFwi1NFVphf-UeGgyB81sc2SRwufpqP6oZ1Ym6ncrWd-B6UdX5cnlredDUSdJpuhJqSXbPLNbd5qH1WNwO_f5jmi5UHsEEbbaDI2Wkk".to_string();
+        let e = "AQAB".to_string();
+        RS256::new_from_primitives(n, e)?;
+
+        Ok(())
+    }
 
     #[test]
     fn sign_and_verify_asymmetric_signing() -> Result<(),Error> {

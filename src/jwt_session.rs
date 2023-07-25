@@ -301,3 +301,44 @@ impl SessionCreator for JWTSession {
     }
 
 }
+
+#[cfg(test)]
+mod test {
+
+    use std::io::Read;
+
+    use crate::{Error, sign_algorithms::{RS256, HS256}, jwt_session::JWTSession};
+
+    #[test]
+    fn simple_verification_and_signing() -> Result<(),Error> {
+
+        let mut public_key_der = std::fs::File::open("./public.der")?;
+        let mut contents: Vec<u8> = Vec::new();
+        public_key_der.read_to_end(&mut contents)?;
+
+        let key = RS256::new(contents)?;
+        let signing_key = HS256::new("Perritos");
+
+        JWTSession::builder().audience("SIMPLE AUD").iss("SIMPLE ISSUER").add_verification_key(key, "1").signing_key(signing_key).build()?;
+
+        Ok(())
+
+    }
+
+    #[test]
+    async fn jwks_endpoints_verification_and_signing() -> Result<(),Error> {
+
+        let signing_key = HS256::new("Perritos");
+
+        JWTSession::builder()
+            .audience("SIMPLE AUD")
+            .iss("SIMPLE ISSUER")
+            .add_from_jwks("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam/keys").await?
+            .signing_key(signing_key)
+            .build()?;
+
+        Ok(())
+
+    }
+
+}
