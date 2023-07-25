@@ -23,7 +23,7 @@ pub struct JWTSessionBuilder {
 
 impl JWTSessionBuilder {
     
-    pub fn audience<A: AsRef<str>>(self, aud: A) -> Self {
+    pub fn aud<A: AsRef<str>>(self, aud: A) -> Self {
         Self {
             aud: Some(aud.as_ref().to_string()),
             ..self
@@ -38,6 +38,16 @@ impl JWTSessionBuilder {
     }
 
     pub fn signing_key(self, key: HS256) -> Self {
+        Self {
+            signing_key: Some(key),
+            ..self
+        }
+    }
+
+    pub fn signing_key_from_secret<A: AsRef<str>>(self, secret: A) -> Self {
+        
+        let key = HS256::new(secret);
+        
         Self {
             signing_key: Some(key),
             ..self
@@ -69,6 +79,7 @@ impl JWTSessionBuilder {
         let jwks_hm = serde_json::from_str::<HashMap<String,Value>>(&jwks)?.into_iter().map(|(k,v)| -> Result<(String,Vec<HashMap<String,String>>),Error> {
             
             let v = v.to_string();
+
             let jwk = serde_json::from_str::<Vec<HashMap<String,Value>>>(&v)?.into_iter().map(|hm| -> Result<HashMap<String,String>,Error> {
                 
                 hm.into_iter().map(|(hk,hv)| -> Result<(String,String),Error> {
@@ -319,19 +330,24 @@ mod test {
         let key = RS256::new(contents)?;
         let signing_key = HS256::new("Perritos");
 
-        JWTSession::builder().audience("SIMPLE AUD").iss("SIMPLE ISSUER").add_verification_key(key, "1").signing_key(signing_key).build()?;
+        JWTSession::builder()
+            .aud("SIMPLE AUD")
+            .iss("SIMPLE ISSUER")
+            .add_verification_key(key, "1")
+            .signing_key(signing_key)
+            .build()?;
 
         Ok(())
 
     }
 
-    #[test]
+    #[tokio::test]
     async fn jwks_endpoints_verification_and_signing() -> Result<(),Error> {
 
         let signing_key = HS256::new("Perritos");
 
         JWTSession::builder()
-            .audience("SIMPLE AUD")
+            .aud("SIMPLE AUD")
             .iss("SIMPLE ISSUER")
             .add_from_jwks("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam/keys").await?
             .signing_key(signing_key)

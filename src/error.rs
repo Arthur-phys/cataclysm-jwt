@@ -37,7 +37,8 @@ pub enum Error {
     Construction(ConstructionError),
     UTF8(std::str::Utf8Error),
     OpenSSL(ErrorStack),
-    Reqwest(reqwest::Error)
+    Reqwest(reqwest::Error),
+    Cataclysm(cataclysm::Error)
 }
 
 impl From<base64::DecodeError> for Error {
@@ -79,5 +80,11 @@ impl From<reqwest::Error> for Error {
 impl From<serde_json::Error> for Error {
     fn from(value: serde_json::Error) -> Self {
         Error::Serde(value)
+    }
+}
+
+impl From<cataclysm::Error> for Error {
+    fn from(value: cataclysm::Error) -> Self {
+        Error::Cataclysm(value)
     }
 }
