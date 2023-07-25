@@ -1,0 +1,26 @@
+use base64::Engine;
+use base64::engine::general_purpose;
+use rsa::sha2::Sha256;
+use rsa::{BigUint, RsaPublicKey};
+use rsa::pkcs1v15::VerifyingKey;
+use rsa::signature::Verifier;
+
+fn main() {
+
+    let n = general_purpose::URL_SAFE_NO_PAD.decode("AKfNQkE4bI8xl9BSMH5WbsSBKAWM6C2F8hS6We3xDJCcqRtdUZEBCBiYo5kt3NIWrFjrcusSYYGXnvT8WRLZr0ERoaEwo-bcxHjBCYhDvgIpa1wIG8psgZmLjxxieKHIArcpkhM0Ly8ku8_dWhoSllH-49NANxKE6w8XLQ2R6CGK4x3KTwd0Wcb5nQaE5gfizZA91yZHoGgUL42BZg_s5RFi-U3XdT0Sw65mza-xZop10TO5xFwi1NFVphf-UeGgyB81sc2SRwufpqP6oZ1Ym6ncrWd-B6UdX5cnlredDUSdJpuhJqSXbPLNbd5qH1WNwO_f5jmi5UHsEEbbaDI2Wkk").unwrap();
+    let e = general_purpose::URL_SAFE_NO_PAD.decode("AQAB").unwrap();
+    let n = BigUint::from_bytes_be(&n);
+    let e = BigUint::from_bytes_be(&e);
+    let public_key = RsaPublicKey::new(n,e).unwrap();
+    let verifying_key: VerifyingKey<Sha256> = VerifyingKey::<Sha256>::new(public_key);
+
+    let data = b"eyJraWQiOiI1NTM1NTYyOTA3Nzk0Mzc0NjM5MzEwOTIzMzI3MTMyMDEyMzA4MDU0NTkzNjE2NTQiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL2F1dGguY2xvdWRiLnNhdC5nb2IubXgvbmlkcC9vYXV0aC9uYW0iLCJqdGkiOiJjNjNmMDY5MC1iODhhLTRmMTUtODVjZS1iZDI4MTMyZGIyZWYiLCJhdWQiOiI4Y2FiZjllZS1iZDUwLTRkOTUtYmZlYy0wYWJhN2ZiNWZkYmEiLCJleHAiOjE2ODY4NzU1OTQsImlhdCI6MTY4Njg3NTI5NCwibmJmIjoxNjg2ODc1MjY0LCJzdWIiOiJiNjQ1NWQxZWQ2N2ExMzQ1OWYxN2I2NDU1ZDFlZDY3YSIsIl9wdnQiOiJxbzdibzVhaEZNNStmY1RYRlNCNEdZdFpvcFRXbEM2UmV4cHRVbDZmMEhsVGtQT0p2N3UzL0JldW43eXUwbkgwZFl6MUtDN3Nia1dkK0RuMkU0d0FxRzYvTVE2eGkvajdRWWVpMWNKK1NIcTFXMDVlTkYwdndLemFKT1hQYVdNYWVQWitlWGtmQnhMNUZkV0RqYSs5TVhuS0I0S3dJS2Q5QUkyRmthdHkxQmRvOFJBc3FuWldGbzdpK1dQNkNRa21ITmdId2EzRXlrSHl4L2Fzd3ZvRjlzemEzMmlGT3h3U04xS1BSWGMvQjBieG1QRk5BY2RKcmZCZ1hWUnhaa2tvZnhpai9qL0Z6V2J1V0RTemJnZEM3RlRSRVdzMjhyTmJ1KzBiR3R2RXBBVkw0NnNyNWtLdWFQSXF6QjJUcEFLeEFxV1YvajNIZlA3bTRKQlNmZEZNMWp4NW8rdTBrVlVNM25VNnhIaVBtNVFCQm1YNDMrT3VvZXAwSndVR1BGTDhJb2FNQklMV2duSlBMKzFiT21CeXlHdzFGU3VtSk9hazEvVkkvZll2V1FCTHR4b216QkhoV1JxSkZwcDJ4L0ZIcm5ENVFQK2MyVG9QWm15dUVHUWQxQjRadFRHTGlpSlBTTzdOTXB1akVQdThxVDZXVTJDdzZQMUdxU0pEaXhWUTdnZUpxaXlBUXU0QmJMTmx4WHl5WUJ5RUdNVTV2dGNhRlA2Tmw3c1hlcHJneWh2L1lxSFpNUDVzREdzUnYxKzR5UTNqcWxOd3lmbi9Ud3RVOG1ZYmoxSHZqRDRwYk5MVGxOb1ljRnlDaE8xbDBBVTIyT2w0K2RnMUsxSzZaY1orcU9USFpSTEt5WDkyZVBRZkVROTYrWVlCZVpobTMwQjhiL1NBd0d3alJwRT0uNyIsInNjb3BlIjpbXSwiX3RhcmdldCI6IlNla2thbiJ9";
+    let signature = general_purpose::URL_SAFE_NO_PAD.decode("XvOJA8xLPhYzR1_62jCGw8XFiMgv-Y3sVG7HEvJ8KKwqxk9YpGvj3gHObUBlEf0VTB7Ob8KuJyJ44w5YIk9NqY7v5f5fhQzIO0O35Nnp4A0SGAuyF9vjfPvlqtrEUO6sHZXl5p07yz6fpG9VmOKazUV1dD3DNOfmXxWl3tZe2a_y0KgjMHZEfPwDQBjdzr_WPim54w7dL7gHF6sP2SRLoHUMwI-QY1rtY5lr8kwF4n8gfxYww-4nmhw6JxkfoGwUmU5Bmf_NcRqZCAJls4eSUpu8vVM2WoJaSi3H_St1tXokuA9KqazNY_icSHnmbbmvAgQ0OHIDMY3XGJOlWoNUzw").unwrap();
+    let real_sig = signature.as_slice().try_into().unwrap();
+
+    println!("{:?}",data);
+
+    // Verify
+    verifying_key.verify(data, &real_sig).expect("failed to verify");
+    println!("Lo logró señor (parcialmente)")
+}

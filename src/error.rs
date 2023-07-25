@@ -38,7 +38,9 @@ pub enum Error {
     UTF8(std::str::Utf8Error),
     OpenSSL(ErrorStack),
     Reqwest(reqwest::Error),
-    Cataclysm(cataclysm::Error)
+    Cataclysm(cataclysm::Error),
+    Rsa(rsa::Error),
+    RsaSignature(rsa::signature::Error)
 }
 
 impl From<base64::DecodeError> for Error {
@@ -86,5 +88,17 @@ impl From<serde_json::Error> for Error {
 impl From<cataclysm::Error> for Error {
     fn from(value: cataclysm::Error) -> Self {
         Error::Cataclysm(value)
+    }
+}
+
+impl From<rsa::Error> for Error {
+    fn from(value: rsa::Error) -> Self {
+        Error::Rsa(value)
+    }
+}
+
+impl From<rsa::signature::Error> for Error {
+    fn from(value: rsa::signature::Error) -> Self {
+        Error::RsaSignature(value)
     }
 }

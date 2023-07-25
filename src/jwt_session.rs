@@ -241,7 +241,8 @@ impl JWTSession {
         Ok(JWT {
             header,
             payload,
-            signature
+            signature,
+            raw_jwt: token
         })
     }
 
@@ -281,8 +282,8 @@ impl JWTSession {
     fn build_from_req(&self, req: &Request) -> Result<Option<Session>, Error> {
         
         let jwt = Self::obtain_token_from_req(req)?;
-        
-        self.initial_validation(&jwt.header,&jwt.signature)?;
+
+        self.initial_validation(&jwt.header,&jwt.raw_jwt)?;
 
         return Ok(Some(Session::new_with_values(self.clone(), jwt.payload)))
 

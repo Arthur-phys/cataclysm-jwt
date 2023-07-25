@@ -1,26 +1,30 @@
-// use cataclysm::{Server, Branch, http::{Response, Method}, session::Session};
-// use cataclysm_jwt::jwt_session::{JWTSession, JWTAsymmetricSession};
+use cataclysm::{Server, Branch, http::{Response, Method}, session::Session};
+use cataclysm_jwt::{jwt_session::JWTSession, Error};
  
-// async fn index(_session: Session) -> Response {
-//     Response::ok().body("Hello, World!")
-// }
+async fn index(session: Session) -> Response {
+    let iat = session.get("iat").unwrap();
+    println!("Token issued at: {}",iat);
+    Response::ok().body("Hello, World!")
+}
 
 
-// #[tokio::main]
-// async fn main() {
+#[tokio::main]
+async fn main() -> Result<(),Error> {
 
-//     let server = Server::builder(
-//         Branch::<()>::new("/").with(Method::Get.to(index))
-//     ).session_creator(
-//         JWTAsymmetricSession::builder().new_with_rs256_signing().audience("8cabf9ee-bd50-4d95-bfec-0aba7fb5fdba")
-//         .issuer("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam").jwks("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam/keys").build().await.unwrap()
-//     )
-//     .build().unwrap();
+    let server = Server::builder(
+        Branch::<()>::new("/").with(Method::Get.to(index))
+    ).session_creator(
+        JWTSession::builder().aud("8cabf9ee-bd50-4d95-bfec-0aba7fb5fdba")
+        .iss("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam")
+        .signing_key_from_secret("Perritos")
+        .add_from_jwks("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam/keys")
+        .await?
+        .build()?
+    )
+    .build().unwrap();
  
-//     server.run("localhost:8000").await.unwrap();
+    server.run("127.0.0.1:8000").await.unwrap();
 
-// }
+    Ok(())
 
-fn main() {
-    
 }

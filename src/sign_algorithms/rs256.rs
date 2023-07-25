@@ -1,39 +1,35 @@
 use crate::error::{Error, JWTError};
 
-use openssl::{rsa::Rsa, bn::BigNum};
-use ring::{signature, signature::UnparsedPublicKey};
+
+use rsa::{RsaPublicKey, pkcs1v15::{VerifyingKey, Signature}, sha2::Sha256, BigUint, signature::Verifier};
 use base64::{Engine as _, engine::general_purpose};
 use std::fmt::Display;
 
 #[derive(Clone)]
 pub struct RS256 {
-    key: UnparsedPublicKey<Vec<u8>>
+    key: VerifyingKey<Sha256>
 }
 
 impl RS256 {
 
-    pub fn new<A: AsRef<Vec<u8>>>(p_key: A) -> Result<Self,Error> {
-
-        let public_key = UnparsedPublicKey::new(&signature::RSA_PKCS1_2048_8192_SHA256,p_key.as_ref().to_owned());
-
-        Ok(RS256 {
-            key: public_key    
-        })
-
-    }
-
     pub fn new_from_primitives<A: AsRef<str>, B: AsRef<str>>(n: A, e: B) -> Result<Self,Error> {
         
-        let n = BigNum::from_hex_str(n.as_ref())?;
-        let e = BigNum::from_hex_str(e.as_ref())?;
+        let n = general_purpose::URL_SAFE_NO_PAD.decode(n.as_ref())?;
+        let e = general_purpose::URL_SAFE_NO_PAD.decode(e.as_ref())?;
+        let n = BigUint::from_bytes_be(&n);
+        let e = BigUint::from_bytes_be(&e);
 
-        let rsa_public = Rsa::from_public_components(n,e)?;
-        let rsa_public_der = rsa_public.public_key_to_der()?;
+        let public_key = match RsaPublicKey::new(n,e) {
+            Ok(k) => k,
+            Err(e) => {
+                return Err(Error::Rsa(e))
+            }
+        };
 
-        let public_key = UnparsedPublicKey::new(&signature::RSA_PKCS1_2048_8192_SHA256,rsa_public_der.to_owned());
+        let verifying_key: VerifyingKey<Sha256> = VerifyingKey::<Sha256>::new(public_key);
 
         Ok(RS256 {
-            key: public_key
+            key: verifying_key
         })
 
     }
@@ -55,9 +51,10 @@ impl RS256 {
         // Create unprotected jwt (i.e. 'a.b' without the signature)
         let unprotected_jwt = format!("{}.{}",headerb64_str,payloadb64_str);
         // Obtain signature without b64 encoding
-        let mut signature = general_purpose::URL_SAFE_NO_PAD.decode(signatureb64)?;
+        let signature = general_purpose::URL_SAFE_NO_PAD.decode(signatureb64)?;
+        let real_signature: Signature = signature.as_slice().try_into()?;
 
-        self.key.verify(unprotected_jwt.as_bytes(), &mut signature)?;
+        self.key.verify(unprotected_jwt.as_bytes(), &real_signature)?;
         Ok(())
 
 
