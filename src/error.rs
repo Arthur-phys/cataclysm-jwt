@@ -6,8 +6,17 @@ pub enum JWTError {
     Header,
     PayloadField,
     HeaderField,
+    NoAudience,
+    WrongAudience,
+    NoIss,
+    WrongIss,
     WrongAlgorithm,
     NoAlgorithm,
+    Expired,
+    NoExp,
+    ToBeValid,
+    NoIat,
+    NoNbf
 }
 
 #[derive(Debug)]
@@ -33,8 +42,10 @@ pub enum ConstructionError {
 
 #[derive(Debug)]
 pub enum Error {
+    ParseTimestamp,
     JWT(JWTError),
     Key(KeyError),
+    Parse(std::num::ParseIntError),
     File(std::io::Error),
     Decode(base64::DecodeError,&'static str),
     Serde(serde_json::Error),
@@ -55,7 +66,16 @@ impl Display for Error {
                     JWTError::HeaderField => String::from("Unable to decode header field into string!"),
                     JWTError::NoAlgorithm => String::from("Unable to determine algorithm based on header"),
                     JWTError::PayloadField => String::from("Unable to decode jwt payload field to string!"),
-                    JWTError::WrongAlgorithm => String::from("Algorithm on verification key and jwt do not match!")
+                    JWTError::WrongAlgorithm => String::from("Algorithm on verification key and algorithm on jwt do not match!"),
+                    JWTError::NoAudience => String::from("No Audience found on payload!"),
+                    JWTError::WrongAudience => String::from("Audience on payload and audience on server do not match!"),
+                    JWTError::NoIss => String::from("No Issuer found on payload!"),
+                    JWTError::WrongIss => String::from("Issuer on payload and issuer on server do not match!"),
+                    JWTError::Expired => String::from("Token expired"),
+                    JWTError::NoExp => String::from("No exp found on payload!"),
+                    JWTError::ToBeValid => String::from("validation time Window not valid yet!"),
+                    JWTError::NoIat => String::from("No iat found on payload!"),
+                    JWTError::NoNbf => String::from("No nbf found on payload!"),
                 }
             },
             Error::Decode(e,s) => {
@@ -86,6 +106,8 @@ impl Display for Error {
             Error::File(e) => format!("File error! {}",e),
             Error::Reqwest(e) => format!("Reqest error while retrieving jwks! {}",e),
             Error::Serde(e) => format!("Serde error! {}",e),
+            Error::Parse(e) => format!("Parseint error!° {}",e),
+            Error::ParseTimestamp => String::from("Unable to get timestamp from 'exp' field!"),
             Error::UTF8(e) => format!("UTF8 error! Unable to parse jwt into utf8 {}",e)
         };
 
@@ -133,5 +155,11 @@ impl From<rsa::Error> for Error {
 impl From<rsa::signature::Error> for Error {
     fn from(value: rsa::signature::Error) -> Self {
         Error::Key(KeyError::RSASignature(value))
+    }
+}
+
+impl From<std::num::ParseIntError> for Error {
+    fn from(value: std::num::ParseIntError) -> Self {
+        Error::Parse(value)
     }
 }

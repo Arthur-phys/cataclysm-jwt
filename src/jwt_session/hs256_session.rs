@@ -1,5 +1,6 @@
-use crate::{Error, error::{JWTError,KeyError}, sign_algorithms::HS256, jwt_session::{JWTSession,JWTSessionBuilder}};
+use crate::{Error, error::{JWTError,ConstructionError}, sign_algorithms::HS256, jwt_session::JWTSession, JWT};
 
+use chrono::{NaiveDateTime, DateTime, Utc};
 use std::collections::HashMap;
 use cataclysm::{session::{SessionCreator, Session}, http::Request};
 
@@ -12,8 +13,8 @@ pub struct JWTHS256Session {
 
 impl JWTHS256Session {
 
-    pub fn builder() -> JWTSessionBuilder {
-        JWTSessionBuilder::default()
+    pub fn builder() -> JWTHS256Builder {
+        JWTHS256Builder::default()
     }
 
 }
@@ -30,7 +31,7 @@ impl SessionCreator for JWTHS256Session {
                 return Ok(Session::new_with_values(self.clone(),payload))
             },
             Err(_) => {
-                return Err(cataclysm::Error::Custom(format!("some error!")));
+                return Err(cataclysm::Error::Custom(format!("Unable to create session!!")));
             }
         }
     }
@@ -43,17 +44,17 @@ impl JWTSession for JWTHS256Session {
         
         let jwt = Self::obtain_token_from_req(req)?;
 
-        self.initial_validation(&jwt.header,&jwt.raw_jwt)?;
+        self.initial_validation(&jwt)?;
 
         return Ok(jwt.payload)
 
 
     }
 
-    fn initial_validation(&self, header: &HashMap<String, String>, jwt: &str) -> Result<(),Error> {
+    fn initial_validation(&self, jwt: &JWT) -> Result<(),Error> {
 
         // Check the algorithm on jwt is the same as the one in the key
-        match header.get("alg") {
+        match jwt.header.get("alg") {
             Some(a) => {
                 if a.to_lowercase().as_str() != self.verification_key.to_string() {
                     return Err(Error::JWT(JWTError::WrongAlgorithm));
@@ -64,8 +65,160 @@ impl JWTSession for JWTHS256Session {
             }
         };
 
-        self.verification_key.verify_jwt(jwt)
+        #[cfg(not(feature = "lax-security"))]
+        {
+            // Check the audience
+            match jwt.payload.get("aud") {
+                Some(a) => {
+                    if a.as_str() != &self.aud {
+                        return Err(Error::JWT(JWTError::WrongAudience));
+                    }
+                },
+                None => {
+                    return Err(Error::JWT(JWTError::NoAudience))
+                }
+            }
+
+            // Check the issuer
+            match jwt.payload.get("iss") {
+                Some(i) => {
+                    if i.as_str() != &self.iss {
+                        return Err(Error::JWT(JWTError::WrongIss));
+                    }
+                },
+                None => {
+                    return Err(Error::JWT(JWTError::NoIss))
+                }
+            }
+
+            // Check the expiration time
+            match jwt.payload.get("exp") {
+                Some(e) => {
+                    let num_e = str::parse::<i64>(e)?;
+                    let date = NaiveDateTime::from_timestamp_opt(num_e,0).ok_or(Error::ParseTimestamp)?;
+                    let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                    let now = Utc::now();
+                    
+                    println!("Date: {:?}",date_utc);
+                    println!("Date now: {:?}",now);
+
+                    if date_utc < now {
+                        return Err(Error::JWT(JWTError::Expired));
+                    }
+                },
+                None => {
+                    return Err(Error::JWT(JWTError::NoExp))
+                }
+            }
+            
+            // Check the iat
+            match jwt.payload.get("iat") {
+                Some(ia) => {
+                    let num_ia = str::parse::<i64>(ia)?;
+                    let date = NaiveDateTime::from_timestamp_opt(num_ia,0).ok_or(Error::ParseTimestamp)?;
+                    let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                    let now = Utc::now();
+                    
+                    println!("Date: {:?}",date_utc);
+                    println!("Date now: {:?}",now);
+
+                    if date_utc > now {
+                        return Err(Error::JWT(JWTError::ToBeValid));
+                    }
+                },
+                None => {
+                    return Err(Error::JWT(JWTError::NoIat))
+                }
+            }
+
+            match jwt.payload.get("nbf") {
+                Some(nb) => {
+                    let num_nb = str::parse::<i64>(nb)?;
+                    let date = NaiveDateTime::from_timestamp_opt(num_nb,0).ok_or(Error::ParseTimestamp)?;
+                    let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                    let now = Utc::now();
+                    
+                    println!("Date: {:?}",date_utc);
+                    println!("Date now: {:?}",now);
+
+                    if date_utc > now {
+                        return Err(Error::JWT(JWTError::ToBeValid));
+                    }
+                },
+                None => {
+                    return Err(Error::JWT(JWTError::NoNbf))
+                }
+            }
+            
+        }
+
+        self.verification_key.verify_jwt(&jwt.raw_jwt)
 
     }
 
+}
+
+#[derive(Default)]
+pub struct JWTHS256Builder {
+    aud: Option<String>,
+    iss: Option<String>,
+    verification_key: Option<HS256>
+}
+
+impl JWTHS256Builder {
+    
+    pub fn aud<A: AsRef<str>>(self, aud: A) -> Self {
+        Self {
+            aud: Some(aud.as_ref().to_string()),
+            ..self
+        }
+    }
+
+    pub fn iss<A: AsRef<str>>(self, iss: A) -> Self {
+        Self {
+            iss: Some(iss.as_ref().to_string()),
+            ..self
+        }
+    }
+
+    pub fn add_from_secret<A: AsRef<str>>(self, secret: A) -> Self {
+        
+        let verification_key = HS256::new(secret);
+
+        Self {
+            verification_key: Some(verification_key),
+            ..self
+        }
+
+    }
+
+    pub fn build(self) -> Result<JWTHS256Session, Error> {
+        
+        let aud = match self.aud {
+            Some(a) => a,
+            None => {
+                return Err(Error::Construction(ConstructionError::Aud));
+            }
+        };
+
+        let iss = match self.iss {
+            Some(i) => i,
+            None => {
+                return Err(Error::Construction(ConstructionError::Iss));
+            }
+        };
+
+        let verification_key = match self.verification_key {
+            Some(k) => k,
+            None => {
+                return Err(Error::Construction(ConstructionError::Keys))
+            }
+        };
+        
+        Ok(JWTHS256Session {
+            aud,
+            iss,
+            verification_key,
+        })
+    }
 }
