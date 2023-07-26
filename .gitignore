@@ -3,3 +3,4 @@
 *.pk8
 *.der
 rsa_test_local.rs
+private_rs256.rs
