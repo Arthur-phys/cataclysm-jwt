@@ -1,6 +1,9 @@
 use cataclysm::{Server, Branch, http::{Response, Method}, session::Session};
 use cataclysm_jwt::{jwt_session::JWTSessionBuilder, Error};
  
+const aud: &str = "AUDIENCE";
+const iss: &str = "ISSUER";
+
 async fn index(session: Session) -> Response {
     let iat = session.get("iat").unwrap();
     println!("Token issued at: {}",iat);
@@ -11,15 +14,12 @@ async fn index(session: Session) -> Response {
 #[tokio::main]
 async fn main() -> Result<(),Error> {
 
-    let header = String::from("{\"Animal\"}");
-    let payload = String::from("");
-
     let server = Server::builder(
         Branch::<()>::new("/").with(Method::Get.to(index))
     ).session_creator(
-        JWTSessionBuilder::with_hs256().aud("8cabf9ee-bd50-4d95-bfec-0aba7fb5fdba")
-        .iss("https://auth.cloudb.sat.gob.mx/nidp/oauth/nam").
-        add_from_secret("perritos")
+        JWTSessionBuilder::with_hs256().aud(aud)
+        .iss(iss)
+        .add_from_secret("perritos")
         .build()?
     )
     .build().unwrap();
