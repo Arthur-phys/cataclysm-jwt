@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"cataclysm_jwt":[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.70.0/core/fmt/trait.Debug.html\" title=\"trait core::fmt::Debug\">Debug</a> for <a class=\"enum\" href=\"cataclysm_jwt/enum.Error.html\" title=\"enum cataclysm_jwt::Error\">Error</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.70.0/core/fmt/trait.Debug.html\" title=\"trait core::fmt::Debug\">Debug</a> for <a class=\"struct\" href=\"cataclysm_jwt/struct.JWT.html\" title=\"struct cataclysm_jwt::JWT\">JWT</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

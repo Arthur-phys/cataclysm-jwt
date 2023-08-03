@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"cataclysm_jwt":[["impl SessionCreator for <a class=\"struct\" href=\"cataclysm_jwt/jwt_session/struct.JWTRS256Session.html\" title=\"struct cataclysm_jwt::jwt_session::JWTRS256Session\">JWTRS256Session</a>"],["impl SessionCreator for <a class=\"struct\" href=\"cataclysm_jwt/jwt_session/struct.JWTHS256Session.html\" title=\"struct cataclysm_jwt::jwt_session::JWTHS256Session\">JWTHS256Session</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
