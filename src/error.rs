@@ -1,58 +1,95 @@
 use std::fmt::Display;
 
 #[derive(Debug)]
+/// Sub error for JWT
 pub enum JWTError {
+    /// Occurs when JWT can be divided in more or less than three
     JWTParts,
+    /// Happens when Header 'authorization' or 'Authorization is not present'
     Header,
+    /// Happens when jwt payload is unable to be decoded or obtained.
     PayloadField,
+    /// Happens when jwt header is unable to be decoded or obtained.
     HeaderField,
+    /// Happens when no audience is in header and lax-security is not enabled.
     NoAudience,
+    /// Happens when wrong audience was found on token and lax-security is not enabled.
     WrongAudience,
+    /// Happens when no issuer was fopund on jwt
     NoIss,
+    /// Happens when issuer differs from the one expected
     WrongIss,
+    /// When algorithm does not match the one expected by the server
     WrongAlgorithm,
+    /// When no algorithm was found on jwt
     NoAlgorithm,
+    /// When jwt has expired
     Expired,
+    /// When no expiration date was found
     NoExp,
+    /// When iat or nbf comprises a time window that is yet ro happen
     ToBeValid,
+    /// No iat was found on jwt
     NoIat,
+    /// No nbf was found on jwt
     NoNbf
 }
 
 #[derive(Debug)]
+/// Sub error for Keys creation and verification
 pub enum KeyError {
+    /// Error when trying to verify symmetric signature
     Verification(ring::error::Unspecified),
+    /// Error when trying to verify assymmetric signature
     RSASignature(rsa::signature::Error),
+    /// Error from RSA crate when trying to create a public key from modulus 'n' and exponent 'e'
     RSA(rsa::Error),
+    /// Unable to convert JWK field to string
     JWKField,
+    /// Did not find keys field on JWKS array
     KeyField,
+    /// Kid not present on JWK
     KidField,
-    KeyType,
+    /// Did not find key with kid specified
     Kid,
+    /// Could not find primitive exponent 'e' on JWK
     E,
+    /// Could not find primitive exponent 'n' on JWK
     N
 }
 
 #[derive(Debug)]
+/// Sub error for creating session
 pub enum ConstructionError {
+    /// Did not find audience on JWTSession
     Aud,
+    /// Did not find issuer on JWTSession
     Iss,
+    /// Could not 
     Keys
 }
 
 #[derive(Debug)]
+/// Main error
 pub enum Error {
+    /// Unable to parse timestamp for 'nbf', 'iat' or 'exp' fields
     ParseTimestamp,
+    /// JWT sub error
     JWT(JWTError),
+    /// Key sub error
     Key(KeyError),
+    /// Parse error while converting 'nbf', 'iat' or 'exp' to integers to parse to timestamp
     Parse(std::num::ParseIntError),
-    File(std::io::Error),
+    /// Decode base64 url safe error while parsing JWT
     Decode(base64::DecodeError,&'static str),
+    /// Serde error while deserializing JWT parts into HashMaps
     Serde(serde_json::Error),
+    /// Construction sub error
     Construction(ConstructionError),
+    /// UTF8 error while decoding JWT from base64
     UTF8(std::str::Utf8Error),
+    /// Reqwest error while trying to obtain JWK array (JWKS)
     Reqwest(reqwest::Error),
-    Cataclysm(cataclysm::Error),
 }
 
 impl Display for Error {
@@ -91,11 +128,9 @@ impl Display for Error {
                     KeyError::E => String::from("Unable to obtain 'e' field on jwk"),
                     KeyError::N => String::from("Unable to obtain 'n' field on jwk"),
                     KeyError::Kid => String::from("Unable to find key with 'kid' provided"),
-                    KeyError::KeyType => String::from(""),
                     KeyError::RSASignature(e) => format!("Error while verifying jwt with public key! {}",e)
                 }
             },
-            Error::Cataclysm(e) => format!("Cataclysm error! {}",e),
             Error::Construction(ce) => {
                 match ce {
                     ConstructionError::Aud => format!("Missing audience field on constructor!"),
@@ -103,11 +138,10 @@ impl Display for Error {
                     ConstructionError::Keys => format!("Missing keys on constructor!")
                 }
             }
-            Error::File(e) => format!("File error! {}",e),
             Error::Reqwest(e) => format!("Reqest error while retrieving jwks! {}",e),
             Error::Serde(e) => format!("Serde error! {}",e),
             Error::Parse(e) => format!("Parseint error!° {}",e),
-            Error::ParseTimestamp => String::from("Unable to get timestamp from 'exp' field!"),
+            Error::ParseTimestamp => String::from("Unable to get timestamp from 'exp', 'iat' or 'nbf' fields!"),
             Error::UTF8(e) => format!("UTF8 error! Unable to parse jwt into utf8 {}",e)
         };
 
@@ -122,12 +156,6 @@ impl From<ring::error::Unspecified> for Error {
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(value: std::io::Error) -> Self {
-        Error::File(value)
-    }
-}
-
 impl From<reqwest::Error> for Error {
     fn from(value: reqwest::Error) -> Self {
         Error::Reqwest(value)
@@ -137,12 +165,6 @@ impl From<reqwest::Error> for Error {
 impl From<serde_json::Error> for Error {
     fn from(value: serde_json::Error) -> Self {
         Error::Serde(value)
-    }
-}
-
-impl From<cataclysm::Error> for Error {
-    fn from(value: cataclysm::Error) -> Self {
-        Error::Cataclysm(value)
     }
 }
 

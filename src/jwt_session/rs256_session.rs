@@ -104,9 +104,6 @@ impl JWTSession for JWTRS256Session {
                     let date = NaiveDateTime::from_timestamp_opt(num_e,0).ok_or(Error::ParseTimestamp)?;
                     let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
                     let now = Utc::now();
-                    
-                    println!("Date: {:?}",date_utc);
-                    println!("Date now: {:?}",now);
 
                     if date_utc < now {
                         return Err(Error::JWT(JWTError::Expired));
@@ -124,9 +121,6 @@ impl JWTSession for JWTRS256Session {
                     let date = NaiveDateTime::from_timestamp_opt(num_ia,0).ok_or(Error::ParseTimestamp)?;
                     let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
                     let now = Utc::now();
-                    
-                    println!("Date: {:?}",date_utc);
-                    println!("Date now: {:?}",now);
 
                     if date_utc > now {
                         return Err(Error::JWT(JWTError::ToBeValid));
@@ -143,9 +137,6 @@ impl JWTSession for JWTRS256Session {
                     let date = NaiveDateTime::from_timestamp_opt(num_nb,0).ok_or(Error::ParseTimestamp)?;
                     let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
                     let now = Utc::now();
-                    
-                    println!("Date: {:?}",date_utc);
-                    println!("Date now: {:?}",now);
 
                     if date_utc > now {
                         return Err(Error::JWT(JWTError::ToBeValid));
