@@ -20,3 +20,5 @@ chrono = "0.4.26"
 
 [features]
 lax-security = []
+jwt-use = []
+jwt-alg = []

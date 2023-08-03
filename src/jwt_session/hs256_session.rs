@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use cataclysm::{session::{SessionCreator, Session}, http::Request};
 
 #[derive(Clone)]
+/// Implementation of HS256 session, or symmetric session (the most common at least)
 pub struct JWTHS256Session {
     pub aud: String,
     pub iss: String,
@@ -13,6 +14,7 @@ pub struct JWTHS256Session {
 
 impl JWTHS256Session {
 
+    /// Simple builder function
     pub fn builder() -> JWTHS256Builder {
         JWTHS256Builder::default()
     }
@@ -150,6 +152,7 @@ impl JWTSession for JWTHS256Session {
 }
 
 #[derive(Default)]
+/// Simple builder for HS256 session
 pub struct JWTHS256Builder {
     aud: Option<String>,
     iss: Option<String>,
@@ -158,6 +161,7 @@ pub struct JWTHS256Builder {
 
 impl JWTHS256Builder {
     
+    /// Get audience
     pub fn aud<A: AsRef<str>>(self, aud: A) -> Self {
         Self {
             aud: Some(aud.as_ref().to_string()),
@@ -165,6 +169,7 @@ impl JWTHS256Builder {
         }
     }
 
+    /// Get issuer
     pub fn iss<A: AsRef<str>>(self, iss: A) -> Self {
         Self {
             iss: Some(iss.as_ref().to_string()),
@@ -172,6 +177,7 @@ impl JWTHS256Builder {
         }
     }
 
+    /// Create HS256 key from shared secret
     pub fn add_from_secret<A: AsRef<str>>(self, secret: A) -> Self {
         
         let verification_key = HS256::new(secret);
@@ -183,6 +189,7 @@ impl JWTHS256Builder {
 
     }
 
+    /// Simple builder
     pub fn build(self) -> Result<JWTHS256Session, Error> {
         
         let aud = match self.aud {

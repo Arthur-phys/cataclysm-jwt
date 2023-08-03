@@ -6,6 +6,7 @@ use chrono::{NaiveDateTime, DateTime, Utc};
 use cataclysm::{session::{SessionCreator, Session}, http::Request};
 
 #[derive(Clone)]
+/// Implementation of a RS256 session, or an assymmetric session (the most common at least)
 pub struct JWTRS256Session {
     pub aud: String,
     pub iss: String,
@@ -14,6 +15,7 @@ pub struct JWTRS256Session {
 
 impl JWTRS256Session {
     
+    /// Simple builder function
     pub fn builder() -> JWTRS256Builder {
         JWTRS256Builder::default()
     }
@@ -166,6 +168,7 @@ impl JWTSession for JWTRS256Session {
 }
 
 #[derive(Default)]
+/// Simple builder for RS256 session
 pub struct JWTRS256Builder {
     aud: Option<String>,
     iss: Option<String>,
@@ -174,6 +177,7 @@ pub struct JWTRS256Builder {
 
 impl JWTRS256Builder {
     
+    /// Creates audience
     pub fn aud<A: AsRef<str>>(self, aud: A) -> Self {
         Self {
             aud: Some(aud.as_ref().to_string()),
@@ -181,6 +185,7 @@ impl JWTRS256Builder {
         }
     }
 
+    /// Creates issuer
     pub fn iss<A: AsRef<str>>(self, iss: A) -> Self {
         Self {
             iss: Some(iss.as_ref().to_string()),
@@ -188,6 +193,7 @@ impl JWTRS256Builder {
         }
     }
 
+    /// Adds verification key from prior key `RS256` structure. Mostly used if one has an already known key, but it is better to use the `add_from_jwks` function
     pub fn add_verification_key<A: AsRef<str>>(self, key: RS256, kid: A) -> Self {
 
         let vk = match self.verification_keys {
@@ -206,10 +212,15 @@ impl JWTRS256Builder {
         }
     }
 
+    /// Uses an endpoint to obtain public keys needed for verification from an array of keys.
+    /// Will ignore any key that does not use RS256 as signing algorithm.
+    /// Will panic if no key was found with RS256 alg.
     pub async fn add_from_jwks<A: AsRef<str>>(self, url: A) -> Result<Self,Error> {
 
+        // Obtaining response from JWKS endpoint
         let jwks = reqwest::get(url.as_ref()).await?.text().await?;
         
+        // Will deserialize it into `{keys: [{...},...]}` HashMap
         let jwks_hm = serde_json::from_str::<HashMap<String,Value>>(&jwks)?.into_iter().map(|(k,v)| -> Result<(String,Vec<HashMap<String,String>>),Error> {
             
             let v = v.to_string();
@@ -231,34 +242,82 @@ impl JWTRS256Builder {
         
         }).collect::<Result<HashMap<String,Vec<HashMap<String,String>>>,_>>()?;
 
-        let jwks_vec = jwks_hm.get("keys").ok_or(Error::Key(KeyError::KeyField))?;
+        let jwks_vec: &Vec<HashMap<String,String>> = jwks_hm.get("keys").ok_or(Error::Key(KeyError::KeyField))?;
 
-        let rs256_hm = jwks_vec.iter().map(|jwk_hm| -> Result<(String,RS256),Error> {
+        let rs256_hm = jwks_vec.iter().filter_map(|jwk_hm: &HashMap<String,String>| -> Option<Result<(String,RS256),Error>> {
+
+            let kty = match jwk_hm.get("kty") {
+                Some(ty) => ty,
+                None => {
+                    return None;
+                }
+            };
+            
+            // Key type must be RSA
+            // Will ingore otherwise
+            if kty != "RSA" {
+                return None;
+            }
+
+            #[cfg(feature = "jwk-use")]
+            {
+                let usee = match jwk_hm.get("use") {
+                    Some(se) => se,
+                    None => {
+                        return None;
+                    }
+                };
+
+                // Use must be signing
+                if usee != "sig" {
+                    return None;
+                }
+            }
+
+            #[cfg(feature = "jwk-alg")]
+            {
+                let alg = match jwk_hm.get("alg") {
+                    Some(lg) => lg,
+                    None => {
+                        return None;
+                    }
+                };
+
+                // alg must be rs256
+                if alg != "RS256" {
+                    return None;
+                }
+            }
 
             let kid = match jwk_hm.get("kid") {
                 Some(id) => id,
                 None => {
-                    return Err(Error::Key(KeyError::KidField));
+                    return Some(Err(Error::Key(KeyError::KidField)));
                 }
             };
 
             let e = match jwk_hm.get("e") {
                 Some(ee) => ee,
                 None => {
-                    return Err(Error::Key(KeyError::E));
+                    return Some(Err(Error::Key(KeyError::E)));
                 }
             };
 
             let n = match jwk_hm.get("n") {
                 Some(nn) => nn,
                 None => {
-                    return Err(Error::Key(KeyError::N));
+                    return Some(Err(Error::Key(KeyError::N)));
                 }
             };
 
-            let rs256 = RS256::new_from_primitives(n, e)?;
+            let rs256 = match RS256::new_from_primitives(n, e) {
+                Ok(r) => r,
+                Err(e) => {
+                    return Some(Err(e))
+                }
+            };
 
-            Ok((kid.to_string(),rs256))
+            Some(Ok((kid.to_string(),rs256)))
 
         }).collect::<Result<HashMap<String,RS256>,Error>>()?;
 
@@ -269,6 +328,7 @@ impl JWTRS256Builder {
 
     }
 
+    /// Simple building function
     pub fn build(self) -> Result<JWTRS256Session, Error> {
         
         let aud = match self.aud {

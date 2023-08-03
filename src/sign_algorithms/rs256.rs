@@ -6,12 +6,14 @@ use base64::{Engine as _, engine::general_purpose};
 use std::fmt::Display;
 
 #[derive(Clone)]
+/// Simple wrapper arround rsa::VerifyingKey
 pub struct RS256 {
     key: VerifyingKey<Sha256>
 }
 
 impl RS256 {
 
+    /// Creates a new public key from primitives (like the ones obtained from JWKS identity server's endpoint)
     pub fn new_from_primitives<A: AsRef<str>, B: AsRef<str>>(n: A, e: B) -> Result<Self,Error> {
         
         let n = general_purpose::URL_SAFE_NO_PAD.decode(n.as_ref()).map_err(|e| Error::Decode(e, "Unable to decode modulus 'n' for public key!"))?;
@@ -29,6 +31,8 @@ impl RS256 {
 
     }
 
+    /// JWT verification starting from the string with format 'a.b.c'
+    /// Returns a new instance of a JWT
     pub fn verify_jwt(&self, jwt: &str) -> Result<(),Error> {
 
         // Split jwt by '.'
