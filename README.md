@@ -61,5 +61,5 @@ async fn main() -> Result<(),Error> {
 ```
 
 ## Documentation
-Can be found on: 
+https://arthur-phys.github.io/cataclysm-jwt/cataclysm_jwt/
 
