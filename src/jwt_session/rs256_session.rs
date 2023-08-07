@@ -157,9 +157,11 @@ impl JWTSession for JWTRS256Session {
 
     fn build_from_req(&self, req: &Request) -> Result<HashMap<String,String>, Error> {
         
-        let jwt = Self::obtain_token_from_req(req)?;
+        let mut jwt = Self::obtain_token_from_req(req)?;
 
         self.initial_validation(&jwt)?;
+
+        jwt.payload.insert(String::from("raw_jwt"),jwt.raw_jwt.clone());
 
         return Ok(jwt.payload)
 
