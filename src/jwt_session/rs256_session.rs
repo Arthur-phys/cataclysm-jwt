@@ -10,7 +10,9 @@ use cataclysm::{session::{SessionCreator, Session}, http::Request};
 pub struct JWTRS256Session {
     pub aud: String,
     pub iss: String,
-    pub verification_keys: HashMap<String,RS256>
+    pub verification_keys: HashMap<String,RS256>,
+    #[cfg(feature = "delta-start")]
+    pub delta_start: Option<i64>,
 }
 
 impl JWTRS256Session {
@@ -106,10 +108,11 @@ impl JWTSession for JWTRS256Session {
                     let date = NaiveDateTime::from_timestamp_opt(num_e,0).ok_or(Error::ParseTimestamp)?;
                     let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
                     let now = Utc::now();
-
+                    
                     if date_utc < now {
                         return Err(Error::JWT(JWTError::Expired));
                     }
+                    
                 },
                 None => {
                     return Err(Error::JWT(JWTError::NoExp))
@@ -124,9 +127,24 @@ impl JWTSession for JWTRS256Session {
                     let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
                     let now = Utc::now();
 
-                    if date_utc > now {
-                        return Err(Error::JWT(JWTError::ToBeValid));
+                    #[cfg(not(feature = "delta-expiration"))] {
+                        if date_utc > now {
+                            return Err(Error::JWT(JWTError::ToBeValid));
+                        }
                     }
+
+                    #[cfg(feature = "delta-expiration")] {
+                        if let Some(delta) = self.delta_exipration {
+                            if date_utc > (now + delta) {
+                                return Err(Error::JWT(JWTError::Expired));
+                            }
+                        } else {
+                            if date_utc > now {
+                                return Err(Error::JWT(JWTError::Expired));
+                            }
+                        }
+                    }
+
                 },
                 None => {
                     return Err(Error::JWT(JWTError::NoIat))
@@ -140,9 +158,24 @@ impl JWTSession for JWTRS256Session {
                     let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
                     let now = Utc::now();
 
-                    if date_utc > now {
-                        return Err(Error::JWT(JWTError::ToBeValid));
+                    #[cfg(not(feature = "delta-expiration"))] {
+                        if date_utc > now {
+                            return Err(Error::JWT(JWTError::ToBeValid));
+                        }
                     }
+
+                    #[cfg(feature = "delta-expiration")] {
+                        if let Some(delta) = self.delta_exipration {
+                            if date_utc > (now + delta) {
+                                return Err(Error::JWT(JWTError::Expired));
+                            }
+                        } else {
+                            if date_utc > now {
+                                return Err(Error::JWT(JWTError::Expired));
+                            }
+                        }
+                    }
+
                 },
                 None => {
                     return Err(Error::JWT(JWTError::NoNbf))
@@ -175,6 +208,8 @@ pub struct JWTRS256Builder {
     aud: Option<String>,
     iss: Option<String>,
     verification_keys: Option<HashMap<String,RS256>>,
+    #[cfg(feature = "delta-start")]
+    pub delta_start: Option<i64>,
 }
 
 impl JWTRS256Builder {
@@ -212,6 +247,19 @@ impl JWTRS256Builder {
             verification_keys: Some(vk),
             ..self
         }
+    }
+
+    /// Adds a time extension to verify nbf and iat claims.
+    /// If the time extension is called 'delta', then the token is valid since (iat - delta) and (nbf - delta).
+    /// Even if the feature is enabled, when no time window is passed, the time extension will not be enabled.
+    #[cfg(feature = "delta-start")]
+    pub fn delta_start(self, delta_start: i64) -> Self {
+        
+        Self {
+            delta_start: Some(delta_start),
+            ..self
+        }
+
     }
 
     /// Uses an endpoint to obtain public keys needed for verification from an array of keys.
@@ -358,6 +406,8 @@ impl JWTRS256Builder {
             aud,
             iss,
             verification_keys,
+            #[cfg(feature = "delta-start")]
+            delta_start
         })
     }
 
