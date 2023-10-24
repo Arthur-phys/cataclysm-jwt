@@ -117,30 +117,28 @@ impl JWTSession for JWTHS256Session {
             // Check the iat
             match jwt.payload.get("iat") {
                 Some(ia) => {
-
                     let num_ia = str::parse::<i64>(ia)?;
-                    let date = NaiveDateTime::from_timestamp_opt(num_ia,0).ok_or(Error::ParseTimestamp)?;
-                    let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
                     let now = Utc::now();
-
+                    
                     #[cfg(not(feature = "delta-start"))] {
+                        let date = NaiveDateTime::from_timestamp_opt(num_ia,0).ok_or(Error::ParseTimestamp)?;
+                        let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
                         if date_utc > now {
                             return Err(Error::JWT(JWTError::ToBeValid));
                         }
                     }
-
+                    
                     #[cfg(feature = "delta-start")] {
-                        if let Some(delta) = self.delta_start {
-                            if date_utc > (now + delta) {
-                                return Err(Error::JWT(JWTError::Expired));
-                            }
-                        } else {
-                            if date_utc > now {
-                                return Err(Error::JWT(JWTError::Expired));
-                            }
+                        let delta = match self.delta_start {
+                            Some(d) => d,
+                            None => 0
+                        };
+                        let date = NaiveDateTime::from_timestamp_opt(num_ia - delta,0).ok_or(Error::ParseTimestamp)?;
+                        let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                        if date_utc > now {
+                            return Err(Error::JWT(JWTError::Expired));
                         }
                     }
-
                 },
                 None => {
                     return Err(Error::JWT(JWTError::NoIat))
@@ -149,29 +147,28 @@ impl JWTSession for JWTHS256Session {
 
             match jwt.payload.get("nbf") {
                 Some(nb) => {
-                    let num_nb = str::parse::<i64>(nb)?;
-                    let date = NaiveDateTime::from_timestamp_opt(num_nb,0).ok_or(Error::ParseTimestamp)?;
-                    let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                    let num_nb = str::parse::<i64>(nb)?
                     let now = Utc::now();
-
+                    
                     #[cfg(not(feature = "delta-start"))] {
+                        let date = NaiveDateTime::from_timestamp_opt(num_nb,0).ok_or(Error::ParseTimestamp)?;
+                        let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
                         if date_utc > now {
                             return Err(Error::JWT(JWTError::ToBeValid));
                         }
                     }
-
+                    
                     #[cfg(feature = "delta-start")] {
-                        if let Some(delta) = self.delta_start {
-                            if date_utc > (now + delta) {
-                                return Err(Error::JWT(JWTError::Expired));
-                            }
-                        } else {
-                            if date_utc > now {
-                                return Err(Error::JWT(JWTError::Expired));
-                            }
+                        let delta = match self.delta_start {
+                            Some(d) => d,
+                            None => 0
+                        };
+                        let date = NaiveDateTime::from_timestamp_opt(num_nb - delta,0).ok_or(Error::ParseTimestamp)?;
+                        let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                        if date_utc > now {
+                            return Err(Error::JWT(JWTError::Expired));
                         }
                     }
-
                 },
                 None => {
                     return Err(Error::JWT(JWTError::NoNbf))
