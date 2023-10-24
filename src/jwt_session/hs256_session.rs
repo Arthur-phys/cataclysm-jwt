@@ -130,7 +130,7 @@ impl JWTSession for JWTHS256Session {
                     }
 
                     #[cfg(feature = "delta-start")] {
-                        if let Some(delta) = self.delta_exipration {
+                        if let Some(delta) = self.delta_start {
                             if date_utc > (now + delta) {
                                 return Err(Error::JWT(JWTError::Expired));
                             }
@@ -161,7 +161,7 @@ impl JWTSession for JWTHS256Session {
                     }
 
                     #[cfg(feature = "delta-start")] {
-                        if let Some(delta) = self.delta_exipration {
+                        if let Some(delta) = self.delta_start {
                             if date_utc > (now + delta) {
                                 return Err(Error::JWT(JWTError::Expired));
                             }

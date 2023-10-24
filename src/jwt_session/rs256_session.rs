@@ -407,7 +407,7 @@ impl JWTRS256Builder {
             iss,
             verification_keys,
             #[cfg(feature = "delta-start")]
-            delta_start
+            delta_start: self.delta_start
         })
     }
 
