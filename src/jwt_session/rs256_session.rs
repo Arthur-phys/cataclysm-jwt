@@ -152,7 +152,7 @@ impl JWTSession for JWTRS256Session {
 
             match jwt.payload.get("nbf") {
                 Some(nb) => {
-                    let num_nb = str::parse::<i64>(nb)?
+                    let num_nb = str::parse::<i64>(nb)?;
                     let now = Utc::now();
                     
                     #[cfg(not(feature = "delta-start"))] {

@@ -147,7 +147,7 @@ impl JWTSession for JWTHS256Session {
 
             match jwt.payload.get("nbf") {
                 Some(nb) => {
-                    let num_nb = str::parse::<i64>(nb)?
+                    let num_nb = str::parse::<i64>(nb)?;
                     let now = Utc::now();
                     
                     #[cfg(not(feature = "delta-start"))] {
@@ -265,7 +265,7 @@ impl JWTHS256Builder {
             iss,
             verification_key,
             #[cfg(feature = "delta-start")]
-            delta_start
+            delta_start: self.delta_start
         })
     }
 }
