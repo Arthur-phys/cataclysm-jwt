@@ -1,6 +1,6 @@
 use crate::{Error, error::{JWTError,ConstructionError}, sign_algorithms::HS256, jwt_session::JWTSession, JWT};
 
-use chrono::{NaiveDateTime, DateTime, Utc};
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use cataclysm::{session::{SessionCreator, Session}, http::Request};
 
@@ -100,8 +100,7 @@ impl JWTSession for JWTHS256Session {
                 Some(e) => {
 
                     let num_e = str::parse::<i64>(e)?;
-                    let date = NaiveDateTime::from_timestamp_opt(num_e,0).ok_or(Error::ParseTimestamp)?;
-                    let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                    let date_utc = DateTime::from_timestamp(num_e,0).ok_or(Error::ParseTimestamp)?;
                     let now = Utc::now();
                     
                     if date_utc < now {
@@ -121,8 +120,7 @@ impl JWTSession for JWTHS256Session {
                     let now = Utc::now();
                     
                     #[cfg(not(feature = "delta-start"))] {
-                        let date = NaiveDateTime::from_timestamp_opt(num_ia,0).ok_or(Error::ParseTimestamp)?;
-                        let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                        let date_utc = DateTime::from_timestamp(num_ia,0).ok_or(Error::ParseTimestamp)?;
                         if date_utc > now {
                             return Err(Error::JWT(JWTError::ToBeValid));
                         }
@@ -151,8 +149,7 @@ impl JWTSession for JWTHS256Session {
                     let now = Utc::now();
                     
                     #[cfg(not(feature = "delta-start"))] {
-                        let date = NaiveDateTime::from_timestamp_opt(num_nb,0).ok_or(Error::ParseTimestamp)?;
-                        let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                        let date_utc = DateTime::from_timestamp(num_nb,0).ok_or(Error::ParseTimestamp)?;
                         if date_utc > now {
                             return Err(Error::JWT(JWTError::ToBeValid));
                         }
