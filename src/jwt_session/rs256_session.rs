@@ -136,8 +136,7 @@ impl JWTSession for JWTRS256Session {
                             Some(d) => d,
                             None => 0
                         };
-                        let date = NaiveDateTime::from_timestamp_opt(num_ia - delta,0).ok_or(Error::ParseTimestamp)?;
-                        let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                        let date_utc = DateTime::from_timestamp(num_ia - delta,0).ok_or(Error::ParseTimestamp)?;
                         if date_utc > now {
                             return Err(Error::JWT(JWTError::Expired));
                         }
@@ -165,8 +164,7 @@ impl JWTSession for JWTRS256Session {
                             Some(d) => d,
                             None => 0
                         };
-                        let date = NaiveDateTime::from_timestamp_opt(num_nb - delta,0).ok_or(Error::ParseTimestamp)?;
-                        let date_utc: DateTime<Utc> = DateTime::from_utc(date, Utc);
+                        let date_utc = DateTime::from_timestamp(num_nb - delta,0).ok_or(Error::ParseTimestamp)?;
                         if date_utc > now {
                             return Err(Error::JWT(JWTError::Expired));
                         }
