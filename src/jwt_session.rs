@@ -22,24 +22,11 @@ pub trait JWTSession: Clone + SessionCreator {
     /// Should perform any kind of validation necessary before reading and manipulating the request
     fn initial_validation(&self, jwt: &JWT) -> Result<(),Error>;
 
-    /// From request extract JWT to manipulate it easier later on
-    fn obtain_token_from_req(req: &Request) -> Result<JWT,Error> {
+    /// Deserializes any token from a string.
+    /// The functionality split apart from the function obtain_token_from_req so to use it in cases
+    /// in which a JWT needs to be built without a session.
+    fn deserialize_token(token: String) -> Result<JWT,Error> {
 
-        // Get authorizarion header
-        let authorization_header = match req.headers.get("Authorization") {
-            Some(a) => a,
-            None => {
-                match req.headers.get("authorization") {
-                    Some(a_t) => a_t,
-                    None => {
-                        return Err(Error::JWT(JWTError::Header));
-                    }
-                }
-            }
-        };
-        
-        // Split token
-        let token: String = authorization_header[0].split(' ').collect::<Vec<&str>>()[1].to_string();
         let token_parts: Vec<&str> = token.split('.').collect();
 
         // Get header and convert it to HashMap
@@ -91,6 +78,29 @@ pub trait JWTSession: Clone + SessionCreator {
             signature,
             raw_jwt: token
         })
+
+    }
+
+    /// From request extract JWT to manipulate it easier later on
+    fn obtain_token_from_req(req: &Request) -> Result<JWT,Error> {
+
+        // Get authorizarion header
+        let authorization_header = match req.headers.get("Authorization") {
+            Some(a) => a,
+            None => {
+                match req.headers.get("authorization") {
+                    Some(a_t) => a_t,
+                    None => {
+                        return Err(Error::JWT(JWTError::Header));
+                    }
+                }
+            }
+        };
+        
+        // Split token
+        let token: String = authorization_header[0].split(' ').collect::<Vec<&str>>()[1].to_string();
+        Self::deserialize_token(token)
+    
     }
 
     /// Build session from incoming request. Should return a HashMap with values needed to validate session and possibly receive user information (through jwt)

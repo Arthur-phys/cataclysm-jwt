@@ -145,6 +145,7 @@ checksum = "297bcd09876767aee799060c497a30002a1e55f0ad883ff9aa8f5f8b6332b9d6"
 dependencies = [
  "base64",
  "bytes",
+ "cataclysm-ws",
  "chrono",
  "cookie",
  "ctrlc",
@@ -173,6 +174,18 @@ dependencies = [
  "rsa",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "cataclysm-ws"
+version = "0.3.0-beta.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8522029e144f26f16b56cd4f7d62c9da5622bca7db0ff23ac657d3426e06336"
+dependencies = [
+ "bytes",
+ "log",
+ "rand",
  "tokio",
 ]
 
@@ -1059,6 +1072,7 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
+ "libc",
  "rand_chacha",
  "rand_core",
 ]
